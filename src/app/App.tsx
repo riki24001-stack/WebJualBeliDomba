@@ -736,7 +736,12 @@ function PageLogin({ setPage, onLoginDemo }: { setPage: (p: Page) => void; onLog
               </button>
             </div>
           </div>
-          {error && <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-xl px-3 py-2">{error}</p>}
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+              <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700">{error}</p>
+            </div>
+          )}
           <div className="pt-1 space-y-2">
             <button onClick={handleLogin} disabled={loading}
               className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60">
@@ -774,15 +779,21 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
 
   const handleSignup = async () => {
     if (!form.nama || !form.email || !form.pass) return;
+    if (form.pass.length < 6) { setError("Password minimal 6 karakter."); return; }
     setLoading(true);
     setError("");
-    const { error: err } = await supabase.auth.signUp({
+    const { data, error: err } = await supabase.auth.signUp({
       email: form.email,
       password: form.pass,
       options: { data: { nama_lengkap: form.nama, no_hp: form.hp } }
     });
     setLoading(false);
-    if (err) { setError(err.message); return; }
+    if (err) {
+      const msg = err.message || String(err) || "Terjadi kesalahan, coba lagi.";
+      setError(msg);
+      return;
+    }
+    // user created but needs email confirmation
     setDone(true);
   };
 
@@ -821,7 +832,12 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
                 className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
           ))}
-          {error && <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-xl px-3 py-2">{error}</p>}
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+              <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700">{error}</p>
+            </div>
+          )}
           <button onClick={handleSignup} disabled={loading}
             className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors mt-1 disabled:opacity-60">
             {loading ? "Membuat akun..." : "Buat Akun"}
