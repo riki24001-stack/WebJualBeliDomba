@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Search, Menu, X, Phone, Star, Filter, Weight, Ruler,
   Calendar, CheckCircle, Clock, AlertCircle, ArrowRight,
   LogOut, User, Shield, Package, CreditCard, BarChart2,
   Edit2, Trash2, Plus, Upload, Check, Home, MessageCircle,
   ArrowLeft, Settings, ChevronRight, Image, Info, Save,
-  Eye, EyeOff, Lock, MapPin
+  Eye, EyeOff, Lock, MapPin, Copy, Database
 } from "lucide-react";
+import { supabase } from "../../utils/supabase/client";
+import { projectId } from "../../utils/supabase/info";
 
 // ── Types ─────────────────────────────────────────────────────────────
 type Page = "beranda" | "katalog" | "detail" | "login" | "signup" | "cicilan" | "admin" | "profil";
@@ -24,7 +26,6 @@ interface SiteConfig {
   namaBank: string;
   norek: string;
   namaRekening: string;
-  // Paket cicilan
   cicilanAktif: boolean;
   cicilanJudul: string;
   cicilanDeskripsi: string;
@@ -50,13 +51,13 @@ interface ProdukLain {
   foto: string;
 }
 
+// ── Default Data ──────────────────────────────────────────────────────
 const DEFAULT_PRODUK_LAIN: ProdukLain[] = [
   { id: "p1", nama: "Hampas Tahu", kategori: "Pakan", harga: 15000, satuan: "karung", stok: 120, foto: "https://images.unsplash.com/photo-1464226184884-fa280b87c399?w=400&h=300&fit=crop&auto=format" },
   { id: "p2", nama: "Pupuk Kandang (Kohe)", kategori: "Pupuk", harga: 25000, satuan: "karung", stok: 80, foto: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=300&fit=crop&auto=format" },
   { id: "p3", nama: "Jerami Fermentasi", kategori: "Pakan", harga: 20000, satuan: "karung", stok: 0, foto: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=400&h=300&fit=crop&auto=format" },
 ];
 
-// ── Mock Data ─────────────────────────────────────────────────────────
 const DEFAULT_SHEEP_DATA: Sheep[] = [
   { id: "1", kode: "DMB-001", nama: "Gareng", harga: 4500000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 18, beratKg: 42, tinggiCm: 68, foto: ["https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=800&h=600&fit=crop&auto=format", "https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan sehat, bertubuh besar dan gemuk. Cocok untuk qurban Idul Adha. Sudah divaksin lengkap." },
   { id: "2", kode: "DMB-002", nama: "Petruk", harga: 5200000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 24, beratKg: 56, tinggiCm: 74, foto: ["https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan premium, bulu tebal dan bersih. Sangat aktif dan sehat." },
@@ -66,6 +67,70 @@ const DEFAULT_SHEEP_DATA: Sheep[] = [
   { id: "6", kode: "DMB-006", nama: "Arjuna", harga: 4800000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 22, beratKg: 50, tinggiCm: 71, foto: ["https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan dengan proporsi tubuh ideal. Bulu bersih, gigi lengkap." },
 ];
 
+const DEFAULT_CFG: SiteConfig = {
+  heroImage: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=1600&h=900&fit=crop&auto=format",
+  heroTitle: "Domba Pilihan, Harga Jujur.",
+  heroSubtitle: "Paket cicilan Idul Adha tersedia",
+  whatsapp: "628123456789",
+  alamat: "Boyolali, Jawa Tengah",
+  alamatLengkap: "Jl. Peternakan No. 12, Boyolali, Jawa Tengah 57311",
+  googleMaps: "https://maps.google.com/?q=Boyolali,Jawa+Tengah",
+  namaFarm: "DapurDomba",
+  namaBank: "BRI",
+  norek: "1234-5678-9012-3456",
+  namaRekening: "Bapak Harto Wijaya",
+  cicilanAktif: true,
+  cicilanJudul: "Paket Cicilan Qurban — Ringan di Kantong",
+  cicilanDeskripsi: "Pilih domba sekarang, cicil hingga 3× pembayaran. Domba aman tersimpan di kandang kami.",
+  cicilanMaksimal: "3",
+  cicilanDeadline: "Juni 2026",
+};
+
+// ── Supabase helpers ──────────────────────────────────────────────────
+const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/server/make-server-6a2217ea`;
+
+async function uploadImageToServer(file: File): Promise<string> {
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${SERVER_BASE}/upload`, { method: "POST", body: fd });
+    if (res.ok) return (await res.json()).url;
+  } catch {}
+  return URL.createObjectURL(file);
+}
+
+function mapToSheep(p: any, index: number): Sheep {
+  const spec = (p.domba_spesifikasi as any[])?.[0] || {};
+  const imgs = (p.product_images as any[])?.map((img: any) => img.image_url).filter(Boolean) || [];
+  return {
+    id: p.id,
+    kode: `DMB-${String(index + 1).padStart(3, "0")}`,
+    nama: p.nama,
+    harga: p.harga,
+    status: p.status,
+    jenisKelamin: spec.jenis_kelamin || "jantan",
+    umurBulan: spec.umur_bulan || 0,
+    beratKg: spec.berat_kg || 0,
+    tinggiCm: spec.tinggi_cm || 0,
+    foto: imgs.length ? imgs : ["https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=800&h=600&fit=crop&auto=format"],
+    deskripsi: p.deskripsi || "",
+  };
+}
+
+function mapToProdukLain(p: any): ProdukLain {
+  const img = (p.product_images as any[])?.[0]?.image_url || "";
+  return {
+    id: p.id,
+    nama: p.nama,
+    kategori: p.deskripsi || "Produk",
+    harga: p.harga,
+    satuan: p.satuan,
+    stok: p.stok,
+    foto: img,
+  };
+}
+
+// ── Formatters ────────────────────────────────────────────────────────
 const fmtRp = (n: number) => "Rp " + n.toLocaleString("id-ID");
 
 // ── Status Badge ──────────────────────────────────────────────────────
@@ -518,7 +583,6 @@ function PageDetail({ id, setPage, role, wa, sheepData, cfg }: { id: string; set
                   </button>
                 )}
 
-                {/* Panel pilihan transaksi */}
                 {showOrder && (
                   <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
                     <p className="font-semibold text-sm text-foreground">Pilih Cara Transaksi</p>
@@ -533,7 +597,6 @@ function PageDetail({ id, setPage, role, wa, sheepData, cfg }: { id: string; set
                       </button>
                     </div>
 
-                    {/* COD detail */}
                     {metodeBayar === "cod" && (
                       <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
                         <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">Bayar di Tempat (COD)</p>
@@ -555,7 +618,6 @@ function PageDetail({ id, setPage, role, wa, sheepData, cfg }: { id: string; set
                       </div>
                     )}
 
-                    {/* Transfer detail */}
                     {metodeBayar === "transfer" && (
                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
                         <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Transfer Bank</p>
@@ -629,10 +691,23 @@ function PageDetail({ id, setPage, role, wa, sheepData, cfg }: { id: string; set
 }
 
 // ── PAGE: Login ───────────────────────────────────────────────────────
-function PageLogin({ setPage, onLogin }: { setPage: (p: Page) => void; onLogin: (r: Role) => void }) {
+function PageLogin({ setPage, onLoginDemo }: { setPage: (p: Page) => void; onLoginDemo: (r: Role) => void }) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email || !pass) return;
+    setLoading(true);
+    setError("");
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password: pass });
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    setPage("beranda");
+  };
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
@@ -647,25 +722,39 @@ function PageLogin({ setPage, onLogin }: { setPage: (p: Page) => void; onLogin: 
           <div>
             <label className="block text-sm font-medium mb-1.5">Email</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@kamu.com"
+              onKeyDown={e => e.key === "Enter" && handleLogin()}
               className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1.5">Password</label>
             <div className="relative">
               <input type={show ? "text" : "password"} value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••"
+                onKeyDown={e => e.key === "Enter" && handleLogin()}
                 className="w-full px-3 py-2.5 pr-10 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
               <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                 {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
+          {error && <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-xl px-3 py-2">{error}</p>}
           <div className="pt-1 space-y-2">
-            <button onClick={() => onLogin("user")} className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
-              Masuk sebagai User
+            <button onClick={handleLogin} disabled={loading}
+              className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60">
+              {loading ? "Masuk..." : "Masuk"}
             </button>
-            <button onClick={() => onLogin("admin")} className="w-full py-2.5 bg-secondary/20 text-secondary border border-secondary/30 rounded-xl font-semibold text-sm hover:bg-secondary/30 transition-colors">
-              Masuk sebagai Admin (Demo)
-            </button>
+            <div className="relative flex items-center gap-2 py-1">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">atau coba demo</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => onLoginDemo("user")} className="py-2.5 bg-muted text-foreground rounded-xl font-semibold text-xs hover:bg-muted/70 transition-colors">
+                Demo User
+              </button>
+              <button onClick={() => onLoginDemo("admin")} className="py-2.5 bg-secondary/20 text-secondary border border-secondary/30 rounded-xl font-semibold text-xs hover:bg-secondary/30 transition-colors">
+                Demo Admin
+              </button>
+            </div>
           </div>
         </div>
         <p className="text-center text-sm text-muted-foreground mt-4">
@@ -677,8 +766,41 @@ function PageLogin({ setPage, onLogin }: { setPage: (p: Page) => void; onLogin: 
 }
 
 // ── PAGE: Signup ──────────────────────────────────────────────────────
-function PageSignup({ setPage, onLogin }: { setPage: (p: Page) => void; onLogin: (r: Role) => void }) {
+function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
   const [form, setForm] = useState({ nama: "", email: "", hp: "", pass: "" });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSignup = async () => {
+    if (!form.nama || !form.email || !form.pass) return;
+    setLoading(true);
+    setError("");
+    const { error: err } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.pass,
+      options: { data: { nama_lengkap: form.nama, no_hp: form.hp } }
+    });
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    setDone(true);
+  };
+
+  if (done) return (
+    <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm text-center">
+        <div className="w-16 h-16 bg-emerald-100 rounded-3xl flex items-center justify-center mx-auto mb-4">
+          <CheckCircle className="w-8 h-8 text-emerald-600" />
+        </div>
+        <h1 className="font-display text-xl font-bold mb-2">Akun Berhasil Dibuat!</h1>
+        <p className="text-sm text-muted-foreground mb-6">Cek email kamu untuk verifikasi, lalu masuk ke akun DapurDomba.</p>
+        <button onClick={() => setPage("login")} className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
+          Masuk Sekarang
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
@@ -691,7 +813,7 @@ function PageSignup({ setPage, onLogin }: { setPage: (p: Page) => void; onLogin:
             { id: "nama", label: "Nama Lengkap", type: "text", placeholder: "Budi Santoso" },
             { id: "email", label: "Email", type: "email", placeholder: "budi@email.com" },
             { id: "hp", label: "No. HP / WhatsApp", type: "tel", placeholder: "08xxxxxxxx" },
-            { id: "pass", label: "Password", type: "password", placeholder: "Min. 8 karakter" },
+            { id: "pass", label: "Password", type: "password", placeholder: "Min. 6 karakter" },
           ].map(f => (
             <div key={f.id}>
               <label className="block text-sm font-medium mb-1.5">{f.label}</label>
@@ -699,8 +821,10 @@ function PageSignup({ setPage, onLogin }: { setPage: (p: Page) => void; onLogin:
                 className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
           ))}
-          <button onClick={() => onLogin("user")} className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors mt-1">
-            Buat Akun
+          {error && <p className="text-xs text-destructive bg-destructive/5 border border-destructive/20 rounded-xl px-3 py-2">{error}</p>}
+          <button onClick={handleSignup} disabled={loading}
+            className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors mt-1 disabled:opacity-60">
+            {loading ? "Membuat akun..." : "Buat Akun"}
           </button>
         </div>
         <p className="text-center text-sm text-muted-foreground mt-4">
@@ -835,23 +959,32 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
   );
 }
 
-// ── PAGE: Profil (User & Admin shared) ───────────────────────────────
-function PageProfil({ role }: { role: Role }) {
-  const defaults = role === "admin"
-    ? { nama: "Admin DapurDomba", email: "admin@dapurdomba.id", hp: "081111111111" }
-    : { nama: "Budi Santoso", email: "budi@email.com", hp: "081234567890" };
-
-  const [form, setForm] = useState(defaults);
+// ── PAGE: Profil ──────────────────────────────────────────────────────
+function PageProfil({ role, profile, onSaveProfile }: {
+  role: Role;
+  profile: { nama: string; email: string; hp: string };
+  onSaveProfile: (form: { nama: string; email: string; hp: string }) => Promise<void>;
+}) {
+  const [form, setForm] = useState({ ...profile });
+  useEffect(() => { setForm({ ...profile }); }, [profile.nama, profile.email, profile.hp]);
   const [passForm, setPassForm] = useState({ lama: "", baru: "", konfirmasi: "" });
   const [savedProfile, setSavedProfile] = useState(false);
   const [savedPass, setSavedPass] = useState(false);
+  const [passError, setPassError] = useState("");
   const [showPass, setShowPass] = useState({ lama: false, baru: false, konfirmasi: false });
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
+    await onSaveProfile(form);
     setSavedProfile(true);
     setTimeout(() => setSavedProfile(false), 2500);
   };
-  const handleSavePass = () => {
+
+  const handleSavePass = async () => {
+    setPassError("");
+    if (passForm.baru !== passForm.konfirmasi) { setPassError("Password baru tidak cocok."); return; }
+    if (passForm.baru.length < 6) { setPassError("Password minimal 6 karakter."); return; }
+    const { error } = await supabase.auth.updateUser({ password: passForm.baru });
+    if (error) { setPassError(error.message); return; }
     setSavedPass(true);
     setPassForm({ lama: "", baru: "", konfirmasi: "" });
     setTimeout(() => setSavedPass(false), 2500);
@@ -864,18 +997,16 @@ function PageProfil({ role }: { role: Role }) {
         <h1 className="font-display text-2xl font-bold">Profil Saya</h1>
       </div>
 
-      {/* Avatar */}
       <div className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4">
         <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
           {role === "admin" ? <Shield className="w-7 h-7 text-primary" /> : <User className="w-7 h-7 text-primary" />}
         </div>
         <div>
-          <p className="font-display font-semibold text-lg">{form.nama}</p>
+          <p className="font-display font-semibold text-lg">{form.nama || "Pengguna"}</p>
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{role === "admin" ? "Administrator" : "Pembeli"}</span>
         </div>
       </div>
 
-      {/* Edit data diri */}
       <div className="bg-card border border-border rounded-2xl p-5">
         <h2 className="font-semibold mb-4 flex items-center gap-2"><User className="w-4 h-4 text-muted-foreground" /> Data Diri</h2>
         <div className="space-y-3">
@@ -897,7 +1028,6 @@ function PageProfil({ role }: { role: Role }) {
         </div>
       </div>
 
-      {/* Ganti password */}
       <div className="bg-card border border-border rounded-2xl p-5">
         <h2 className="font-semibold mb-4 flex items-center gap-2"><Lock className="w-4 h-4 text-muted-foreground" /> Ganti Password</h2>
         <div className="space-y-3">
@@ -917,6 +1047,7 @@ function PageProfil({ role }: { role: Role }) {
               </div>
             </div>
           ))}
+          {passError && <p className="text-xs text-destructive">{passError}</p>}
           <button onClick={handleSavePass}
             className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedPass ? "bg-emerald-600 text-white" : "bg-secondary text-secondary-foreground hover:bg-secondary/90"}`}>
             {savedPass ? <><Check className="w-4 h-4" /> Password Diubah!</> : "Ganti Password"}
@@ -928,10 +1059,23 @@ function PageProfil({ role }: { role: Role }) {
 }
 
 // ── PAGE: Admin Dashboard ─────────────────────────────────────────────
-function PageAdmin({ cfg, setCfg, produkLain, setProdukLain, sheepData, setSheepData }: {
+function PageAdmin({
+  cfg, setCfg,
+  produkLain, setProdukLain,
+  sheepData, setSheepData,
+  onSaveSheep, onDeleteSheep,
+  onSaveProduk, onDeleteProduk,
+  dbAvailable,
+}: {
   cfg: SiteConfig; setCfg: (c: SiteConfig) => void;
   produkLain: ProdukLain[]; setProdukLain: (p: ProdukLain[]) => void;
   sheepData: Sheep[]; setSheepData: (s: Sheep[]) => void;
+  onSaveSheep: (form: Omit<Sheep, "id">, file: File | null, editId: string | null) => Promise<void>;
+  onDeleteSheep: (id: string) => Promise<void>;
+  onSaveProduk: (form: Omit<ProdukLain, "id">, file: File | null, editId: string | null) => Promise<void>;
+  onDeleteProduk: (id: string) => Promise<void>;
+  dbAvailable: boolean;
+  adminProfile: { nama: string; email: string; hp: string };
 }) {
   const [tab, setTab] = useState<"produk" | "produk_lain" | "pesanan" | "cicilan" | "user" | "pengaturan">("produk");
 
@@ -954,15 +1098,20 @@ function PageAdmin({ cfg, setCfg, produkLain, setProdukLain, sheepData, setSheep
           <p className="text-accent text-xs font-semibold uppercase tracking-widest leading-none">Panel Pengelola</p>
           <h1 className="font-display text-xl font-bold">Dashboard Admin</h1>
         </div>
+        {dbAvailable && (
+          <span className="ml-auto flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+            <Database className="w-3 h-3" /> Database Terhubung
+          </span>
+        )}
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
           { label: "Domba Tersedia", value: sheepData.filter(s => s.status === "tersedia").length, color: "text-emerald-700" },
-          { label: "Pesanan Masuk", value: 12, color: "text-amber-700" },
-          { label: "Cicilan Aktif", value: 42, color: "text-blue-700" },
-          { label: "Pendapatan", value: "48jt", color: "text-primary" },
+          { label: "Total Domba", value: sheepData.length, color: "text-amber-700" },
+          { label: "Dipesan", value: sheepData.filter(s => s.status === "dipesan").length, color: "text-blue-700" },
+          { label: "Terjual", value: sheepData.filter(s => s.status === "terjual").length, color: "text-primary" },
         ].map(s => (
           <div key={s.label} className="bg-card border border-border rounded-2xl p-4">
             <div className={`font-display text-3xl font-bold ${s.color}`}>{s.value}</div>
@@ -981,15 +1130,20 @@ function PageAdmin({ cfg, setCfg, produkLain, setProdukLain, sheepData, setSheep
         ))}
       </div>
 
-      {/* Tab: Produk */}
-      {tab === "produk" && <TabDomba sheepData={sheepData} setSheepData={setSheepData} />}
-
-      {/* Tab: Produk Lain */}
-      {tab === "produk_lain" && (
-        <TabProdukLain produkLain={produkLain} setProdukLain={setProdukLain} />
+      {tab === "produk" && (
+        <TabDomba
+          sheepData={sheepData} setSheepData={setSheepData}
+          onSave={onSaveSheep} onDelete={onDeleteSheep}
+        />
       )}
 
-      {/* Tab: Pesanan */}
+      {tab === "produk_lain" && (
+        <TabProdukLain
+          produkLain={produkLain} setProdukLain={setProdukLain}
+          onSave={onSaveProduk} onDelete={onDeleteProduk}
+        />
+      )}
+
       {tab === "pesanan" && (
         <div>
           <h2 className="font-semibold mb-3">Pesanan Masuk</h2>
@@ -1018,7 +1172,6 @@ function PageAdmin({ cfg, setCfg, produkLain, setProdukLain, sheepData, setSheep
         </div>
       )}
 
-      {/* Tab: Cicilan */}
       {tab === "cicilan" && (
         <div>
           <h2 className="font-semibold mb-3">Kelola Cicilan</h2>
@@ -1056,7 +1209,6 @@ function PageAdmin({ cfg, setCfg, produkLain, setProdukLain, sheepData, setSheep
         </div>
       )}
 
-      {/* Tab: User */}
       {tab === "user" && (
         <div>
           <h2 className="font-semibold mb-3">Daftar Pengguna</h2>
@@ -1085,9 +1237,7 @@ function PageAdmin({ cfg, setCfg, produkLain, setProdukLain, sheepData, setSheep
         </div>
       )}
 
-      {/* Tab: Pengaturan */}
-      {tab === "pengaturan" && <TabPengaturan cfg={cfg} setCfg={setCfg} />}
-
+      {tab === "pengaturan" && <TabPengaturan cfg={cfg} setCfg={setCfg} adminProfile={adminProfile} />}
     </div>
   );
 }
@@ -1099,32 +1249,51 @@ const EMPTY_SHEEP: Omit<Sheep, "id"> = {
   foto: [], deskripsi: "",
 };
 
-function TabDomba({ sheepData, setSheepData }: { sheepData: Sheep[]; setSheepData: (s: Sheep[]) => void }) {
+function TabDomba({
+  sheepData, setSheepData, onSave, onDelete,
+}: {
+  sheepData: Sheep[]; setSheepData: (s: Sheep[]) => void;
+  onSave: (form: Omit<Sheep, "id">, file: File | null, editId: string | null) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
   const [editId, setEditId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Omit<Sheep, "id">>({ ...EMPTY_SHEEP });
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
-  const openAdd = () => { setForm({ ...EMPTY_SHEEP }); setEditId(null); setShowForm(true); setSaved(false); };
+  const openAdd = () => { setForm({ ...EMPTY_SHEEP }); setEditId(null); setShowForm(true); setSaved(false); setPhotoFile(null); };
   const openEdit = (s: Sheep) => {
     setForm({ kode: s.kode, nama: s.nama, harga: s.harga, status: s.status, jenisKelamin: s.jenisKelamin, umurBulan: s.umurBulan, beratKg: s.beratKg, tinggiCm: s.tinggiCm, foto: [...s.foto], deskripsi: s.deskripsi });
-    setEditId(s.id); setShowForm(true); setSaved(false);
+    setEditId(s.id); setShowForm(true); setSaved(false); setPhotoFile(null);
   };
-  const handleDelete = (id: string) => setSheepData(sheepData.filter(s => s.id !== id));
-  const handleSave = () => {
-    if (!form.nama.trim() || !form.kode.trim()) return;
+
+  const handleDelete = async (id: string) => {
+    setSheepData(sheepData.filter(s => s.id !== id));
+    await onDelete(id);
+  };
+
+  const handleSave = async () => {
+    if (!form.nama.trim()) return;
+    setSaving(true);
     if (editId) {
       setSheepData(sheepData.map(s => s.id === editId ? { ...form, id: editId } : s));
     } else {
       setSheepData([...sheepData, { ...form, id: Date.now().toString() }]);
     }
+    await onSave(form, photoFile, editId);
     setSaved(true);
+    setSaving(false);
     setTimeout(() => { setShowForm(false); setSaved(false); }, 1200);
   };
 
   const handleFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setForm(v => ({ ...v, foto: [URL.createObjectURL(file), ...v.foto.slice(1)] }));
+    if (file) {
+      setPhotoFile(file);
+      setForm(v => ({ ...v, foto: [URL.createObjectURL(file), ...v.foto.slice(1)] }));
+    }
   };
 
   return (
@@ -1136,12 +1305,10 @@ function TabDomba({ sheepData, setSheepData }: { sheepData: Sheep[]; setSheepDat
         </button>
       </div>
 
-      {/* Form */}
       {showForm && (
         <div className="bg-card border border-border rounded-2xl p-5 mb-4 space-y-4">
           <h3 className="font-semibold text-sm">{editId ? "Edit Data Domba" : "Tambah Domba Baru"}</h3>
 
-          {/* Foto upload */}
           <label className="block relative aspect-[4/3] rounded-xl overflow-hidden bg-muted border-2 border-dashed border-border cursor-pointer hover:border-primary/50 transition-colors group">
             {form.foto[0]
               ? <img src={form.foto[0]} alt="preview" className="w-full h-full object-cover" />
@@ -1212,9 +1379,9 @@ function TabDomba({ sheepData, setSheepData }: { sheepData: Sheep[]; setSheepDat
           </div>
 
           <div className="flex gap-2">
-            <button onClick={handleSave}
-              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${saved ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
-              {saved ? <><Check className="w-4 h-4" /> Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan</>}
+            <button onClick={handleSave} disabled={saving}
+              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${saved ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+              {saved ? <><Check className="w-4 h-4" /> Tersimpan!</> : saving ? "Menyimpan..." : <><Save className="w-4 h-4" /> Simpan</>}
             </button>
             <button onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
               Batal
@@ -1223,7 +1390,6 @@ function TabDomba({ sheepData, setSheepData }: { sheepData: Sheep[]; setSheepDat
         </div>
       )}
 
-      {/* List */}
       <div className="space-y-2.5">
         {sheepData.map(s => (
           <div key={s.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
@@ -1253,27 +1419,46 @@ function TabDomba({ sheepData, setSheepData }: { sheepData: Sheep[]; setSheepDat
 // ── Tab Produk Lain (Admin) ───────────────────────────────────────────
 const EMPTY_PRODUK: Omit<ProdukLain, "id"> = { nama: "", kategori: "", harga: 0, satuan: "karung", stok: 0, foto: "" };
 
-function TabProdukLain({ produkLain, setProdukLain }: { produkLain: ProdukLain[]; setProdukLain: (p: ProdukLain[]) => void }) {
+function TabProdukLain({
+  produkLain, setProdukLain, onSave, onDelete,
+}: {
+  produkLain: ProdukLain[]; setProdukLain: (p: ProdukLain[]) => void;
+  onSave: (form: Omit<ProdukLain, "id">, file: File | null, editId: string | null) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
   const [editId, setEditId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Omit<ProdukLain, "id">>({ ...EMPTY_PRODUK });
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
-  const openAdd = () => { setForm({ ...EMPTY_PRODUK }); setEditId(null); setShowForm(true); setSaved(false); };
-  const openEdit = (p: ProdukLain) => { setForm({ nama: p.nama, kategori: p.kategori, harga: p.harga, satuan: p.satuan, stok: p.stok, foto: p.foto }); setEditId(p.id); setShowForm(true); setSaved(false); };
+  const openAdd = () => { setForm({ ...EMPTY_PRODUK }); setEditId(null); setShowForm(true); setSaved(false); setPhotoFile(null); };
+  const openEdit = (p: ProdukLain) => { setForm({ nama: p.nama, kategori: p.kategori, harga: p.harga, satuan: p.satuan, stok: p.stok, foto: p.foto }); setEditId(p.id); setShowForm(true); setSaved(false); setPhotoFile(null); };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.nama.trim()) return;
+    setSaving(true);
     if (editId) {
       setProdukLain(produkLain.map(p => p.id === editId ? { ...form, id: editId } : p));
     } else {
       setProdukLain([...produkLain, { ...form, id: Date.now().toString() }]);
     }
+    await onSave(form, photoFile, editId);
     setSaved(true);
+    setSaving(false);
     setTimeout(() => { setShowForm(false); setSaved(false); }, 1200);
   };
 
-  const handleDelete = (id: string) => setProdukLain(produkLain.filter(p => p.id !== id));
+  const handleDelete = async (id: string) => {
+    setProdukLain(produkLain.filter(p => p.id !== id));
+    await onDelete(id);
+  };
+
+  const handleFotoChange = (url: string, e?: React.ChangeEvent<HTMLInputElement>) => {
+    setForm(v => ({ ...v, foto: url }));
+    if (e?.target.files?.[0]) setPhotoFile(e.target.files[0]);
+  };
 
   return (
     <div>
@@ -1284,7 +1469,6 @@ function TabProdukLain({ produkLain, setProdukLain }: { produkLain: ProdukLain[]
         </button>
       </div>
 
-      {/* Form tambah / edit */}
       {showForm && (
         <div className="bg-card border border-border rounded-2xl p-5 mb-4 space-y-3">
           <h3 className="font-semibold text-sm">{editId ? "Edit Produk" : "Tambah Produk Baru"}</h3>
@@ -1311,13 +1495,22 @@ function TabProdukLain({ produkLain, setProdukLain }: { produkLain: ProdukLain[]
                 className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
             <div className="col-span-2">
-              <FotoUpload value={form.foto} onChange={url => setForm(v => ({ ...v, foto: url }))} label="Foto Produk" aspect="aspect-[16/7]" />
+              <label className="block relative aspect-[16/7] rounded-xl overflow-hidden bg-muted border-2 border-dashed border-border cursor-pointer hover:border-primary/50 transition-colors group">
+                {form.foto
+                  ? <img src={form.foto} alt="preview" className="w-full h-full object-cover" />
+                  : <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground"><Upload className="w-6 h-6" /><span className="text-xs font-medium">Upload foto produk</span></div>}
+                {form.foto && <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><span className="text-white text-xs font-semibold flex items-center gap-1.5"><Upload className="w-4 h-4" /> Ganti Foto</span></div>}
+                <input type="file" accept="image/*" onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) { setPhotoFile(file); setForm(v => ({ ...v, foto: URL.createObjectURL(file) })); }
+                }} className="sr-only" />
+              </label>
             </div>
           </div>
           <div className="flex gap-2 pt-1">
-            <button onClick={handleSave}
-              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${saved ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
-              {saved ? <><Check className="w-4 h-4" /> Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan</>}
+            <button onClick={handleSave} disabled={saving}
+              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${saved ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+              {saved ? <><Check className="w-4 h-4" /> Tersimpan!</> : saving ? "Menyimpan..." : <><Save className="w-4 h-4" /> Simpan</>}
             </button>
             <button onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
               Batal
@@ -1326,7 +1519,6 @@ function TabProdukLain({ produkLain, setProdukLain }: { produkLain: ProdukLain[]
         </div>
       )}
 
-      {/* List produk */}
       {produkLain.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground bg-card border border-border rounded-2xl">
           <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -1362,15 +1554,98 @@ function TabProdukLain({ produkLain, setProdukLain }: { produkLain: ProdukLain[]
 }
 
 // ── Tab Pengaturan (Admin) ─────────────────────────────────────────────
-function TabPengaturan({ cfg, setCfg }: { cfg: SiteConfig; setCfg: (c: SiteConfig) => void }) {
+const MIGRATION_SQL = `-- Jalankan SQL ini di Supabase Dashboard > SQL Editor
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  nama_lengkap TEXT NOT NULL DEFAULT '',
+  no_hp TEXT NOT NULL DEFAULT '',
+  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin','user')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  kategori TEXT NOT NULL DEFAULT 'domba' CHECK (kategori IN ('domba','lainnya')),
+  nama TEXT NOT NULL,
+  deskripsi TEXT DEFAULT '',
+  harga BIGINT NOT NULL DEFAULT 0,
+  satuan TEXT NOT NULL DEFAULT 'ekor',
+  stok INT NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'tersedia' CHECK (status IN ('tersedia','dipesan','terjual')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS domba_spesifikasi (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  jenis_kelamin TEXT NOT NULL DEFAULT 'jantan',
+  umur_bulan INT NOT NULL DEFAULT 0,
+  berat_kg INT NOT NULL DEFAULT 0,
+  tinggi_cm INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS product_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE TABLE IF NOT EXISTS site_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL DEFAULT ''
+);
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE domba_spesifikasi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE site_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "profiles_select_own" ON profiles FOR SELECT USING (auth.uid() = id OR EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
+CREATE POLICY "profiles_update_own" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "profiles_insert_own" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "products_select_all" ON products FOR SELECT USING (TRUE);
+CREATE POLICY "products_admin_write" ON products FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "domba_select_all" ON domba_spesifikasi FOR SELECT USING (TRUE);
+CREATE POLICY "domba_admin_write" ON domba_spesifikasi FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "images_select_all" ON product_images FOR SELECT USING (TRUE);
+CREATE POLICY "images_admin_write" ON product_images FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "settings_select_all" ON site_settings FOR SELECT USING (TRUE);
+CREATE POLICY "settings_admin_write" ON site_settings FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO profiles (id, nama_lengkap, no_hp, role)
+  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'nama_lengkap', ''), COALESCE(NEW.raw_user_meta_data->>'no_hp', ''), 'user')
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- Setelah buat akun, jalankan ini untuk jadikan admin (ganti email-nya):
+-- UPDATE profiles SET role = 'admin' WHERE id = (SELECT id FROM auth.users WHERE email = 'email-admin@kamu.com');
+`;
+
+function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg: (c: SiteConfig) => void; adminProfile: { nama: string; email: string; hp: string } }) {
   const [local, setLocal] = useState<SiteConfig>({ ...cfg });
   const [savedSite, setSavedSite] = useState(false);
+  const [showMigration, setShowMigration] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  // Profile
-  const [profileForm, setProfileForm] = useState({ nama: "Admin DapurDomba", email: "admin@dapurdomba.id", hp: "081111111111" });
+  const [profileForm, setProfileForm] = useState({ ...adminProfile });
+  useEffect(() => { setProfileForm({ ...adminProfile }); }, [adminProfile.nama, adminProfile.email, adminProfile.hp]);
   const [savedProfile, setSavedProfile] = useState(false);
   const [passForm, setPassForm] = useState({ lama: "", baru: "", konfirmasi: "" });
   const [savedPass, setSavedPass] = useState(false);
+  const [passError, setPassError] = useState("");
   const [showPass, setShowPass] = useState({ lama: false, baru: false, konfirmasi: false });
 
   const handleSaveSite = () => {
@@ -1378,11 +1653,68 @@ function TabPengaturan({ cfg, setCfg }: { cfg: SiteConfig; setCfg: (c: SiteConfi
     setSavedSite(true);
     setTimeout(() => setSavedSite(false), 2500);
   };
-  const handleSaveProfile = () => { setSavedProfile(true); setTimeout(() => setSavedProfile(false), 2500); };
-  const handleSavePass = () => { setSavedPass(true); setPassForm({ lama: "", baru: "", konfirmasi: "" }); setTimeout(() => setSavedPass(false), 2500); };
+
+  const handleSaveProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("profiles").update({ nama_lengkap: profileForm.nama, no_hp: profileForm.hp }).eq("id", user.id);
+    }
+    setSavedProfile(true);
+    setTimeout(() => setSavedProfile(false), 2500);
+  };
+
+  const handleSavePass = async () => {
+    setPassError("");
+    if (passForm.baru !== passForm.konfirmasi) { setPassError("Password baru tidak cocok."); return; }
+    const { error } = await supabase.auth.updateUser({ password: passForm.baru });
+    if (error) { setPassError(error.message); return; }
+    setSavedPass(true);
+    setPassForm({ lama: "", baru: "", konfirmasi: "" });
+    setTimeout(() => setSavedPass(false), 2500);
+  };
+
+  const handleCopy = () => {
+    try {
+      navigator.clipboard.writeText(MIGRATION_SQL);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = MIGRATION_SQL;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="space-y-5">
+
+      {/* Database Setup Card */}
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-blue-900 flex items-center gap-2 text-sm"><Database className="w-4 h-4" /> Setup Database</p>
+            <p className="text-xs text-blue-700 mt-1">Salin SQL migration ke Supabase Dashboard › SQL Editor untuk mengaktifkan penyimpanan data.</p>
+          </div>
+          <button onClick={() => setShowMigration(!showMigration)} className="text-xs font-semibold text-blue-700 hover:text-blue-900 bg-white border border-blue-200 px-3 py-1.5 rounded-xl whitespace-nowrap transition-colors">
+            {showMigration ? "Tutup" : "Lihat SQL"}
+          </button>
+        </div>
+        {showMigration && (
+          <div className="mt-3">
+            <div className="relative">
+              <pre className="text-xs bg-white border border-blue-100 rounded-xl p-3 overflow-x-auto max-h-48 text-blue-900 font-mono leading-relaxed">{MIGRATION_SQL}</pre>
+              <button onClick={handleCopy} className="absolute top-2 right-2 flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                {copied ? <><Check className="w-3 h-3" /> Disalin!</> : <><Copy className="w-3 h-3" /> Salin</>}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Profil Admin */}
       <div className="bg-card border border-border rounded-2xl p-5">
@@ -1426,6 +1758,7 @@ function TabPengaturan({ cfg, setCfg }: { cfg: SiteConfig; setCfg: (c: SiteConfi
               </div>
             </div>
           ))}
+          {passError && <p className="text-xs text-destructive">{passError}</p>}
           <button onClick={handleSavePass}
             className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedPass ? "bg-emerald-600 text-white" : "bg-secondary text-secondary-foreground hover:bg-secondary/90"}`}>
             {savedPass ? <><Check className="w-4 h-4" /> Password Diubah!</> : "Ganti Password"}
@@ -1514,9 +1847,7 @@ function TabPengaturan({ cfg, setCfg }: { cfg: SiteConfig; setCfg: (c: SiteConfi
       <div className="bg-card border border-border rounded-2xl p-5">
         <h3 className="font-semibold mb-4 flex items-center gap-2"><Image className="w-4 h-4 text-muted-foreground" /> Foto Hero Beranda</h3>
         <div className="space-y-3">
-          <div>
-            <FotoUpload value={local.heroImage} onChange={url => setLocal(v => ({ ...v, heroImage: url }))} label="Foto Hero" aspect="aspect-[16/7]" />
-          </div>
+          <FotoUpload value={local.heroImage} onChange={url => setLocal(v => ({ ...v, heroImage: url }))} label="Foto Hero" aspect="aspect-[16/7]" />
           <div>
             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Judul Hero</label>
             <input type="text" value={local.heroTitle} onChange={e => setLocal(v => ({ ...v, heroTitle: e.target.value }))}
@@ -1539,25 +1870,6 @@ function TabPengaturan({ cfg, setCfg }: { cfg: SiteConfig; setCfg: (c: SiteConfi
 }
 
 // ── ROOT APP ──────────────────────────────────────────────────────────
-const DEFAULT_CFG: SiteConfig = {
-  heroImage: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=1600&h=900&fit=crop&auto=format",
-  heroTitle: "Domba Pilihan, Harga Jujur.",
-  heroSubtitle: "Paket cicilan Idul Adha tersedia",
-  whatsapp: "628123456789",
-  alamat: "Boyolali, Jawa Tengah",
-  alamatLengkap: "Jl. Peternakan No. 12, Boyolali, Jawa Tengah 57311",
-  googleMaps: "https://maps.google.com/?q=Boyolali,Jawa+Tengah",
-  namaFarm: "DapurDomba",
-  namaBank: "BRI",
-  norek: "1234-5678-9012-3456",
-  namaRekening: "Bapak Harto Wijaya",
-  cicilanAktif: true,
-  cicilanJudul: "Paket Cicilan Qurban — Ringan di Kantong",
-  cicilanDeskripsi: "Pilih domba sekarang, cicil hingga 3× pembayaran. Domba aman tersimpan di kandang kami.",
-  cicilanMaksimal: "3",
-  cicilanDeadline: "Juni 2026",
-};
-
 export default function App() {
   const [page, setPage] = useState<Page>("beranda");
   const [role, setRole] = useState<Role>("guest");
@@ -1565,9 +1877,209 @@ export default function App() {
   const [cfg, setCfg] = useState<SiteConfig>(DEFAULT_CFG);
   const [produkLain, setProdukLain] = useState<ProdukLain[]>(DEFAULT_PRODUK_LAIN);
   const [sheepData, setSheepData] = useState<Sheep[]>(DEFAULT_SHEEP_DATA);
+  const [authUser, setAuthUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<{ nama: string; email: string; hp: string }>({ nama: "", email: "", hp: "" });
+  const [dbAvailable, setDbAvailable] = useState(false);
 
-  const handleLogin = (r: Role) => { setRole(r); setPage("beranda"); };
-  const handleLogout = () => { setRole("guest"); setPage("beranda"); };
+  const loadSettings = async () => {
+    try {
+      const res = await fetch(`${SERVER_BASE}/settings`);
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d.error) return;
+      setCfg({
+        heroImage: d.heroImage || DEFAULT_CFG.heroImage,
+        heroTitle: d.heroTitle || DEFAULT_CFG.heroTitle,
+        heroSubtitle: d.heroSubtitle || DEFAULT_CFG.heroSubtitle,
+        whatsapp: d.whatsapp || DEFAULT_CFG.whatsapp,
+        alamat: d.alamat || DEFAULT_CFG.alamat,
+        alamatLengkap: d.alamatLengkap || DEFAULT_CFG.alamatLengkap,
+        googleMaps: d.googleMaps || DEFAULT_CFG.googleMaps,
+        namaFarm: d.namaFarm || DEFAULT_CFG.namaFarm,
+        namaBank: d.namaBank || DEFAULT_CFG.namaBank,
+        norek: d.norek || DEFAULT_CFG.norek,
+        namaRekening: d.namaRekening || DEFAULT_CFG.namaRekening,
+        cicilanAktif: d.cicilanAktif === "true",
+        cicilanJudul: d.cicilanJudul || DEFAULT_CFG.cicilanJudul,
+        cicilanDeskripsi: d.cicilanDeskripsi || DEFAULT_CFG.cicilanDeskripsi,
+        cicilanMaksimal: d.cicilanMaksimal || DEFAULT_CFG.cicilanMaksimal,
+        cicilanDeadline: d.cicilanDeadline || DEFAULT_CFG.cicilanDeadline,
+      });
+    } catch {}
+  };
+
+  const handleSaveSettings = async (newCfg: SiteConfig) => {
+    setCfg(newCfg);
+    try {
+      const payload: Record<string, string> = {};
+      for (const [k, v] of Object.entries(newCfg)) payload[k] = String(v);
+      await fetch(`${SERVER_BASE}/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch {}
+  };
+
+  const loadProducts = async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*, domba_spesifikasi(*), product_images(*)");
+    if (error || !data) return;
+    setDbAvailable(true);
+    const domba = data.filter(p => p.kategori === "domba").map(mapToSheep);
+    const lain = data.filter(p => p.kategori === "lainnya").map(mapToProdukLain);
+    if (domba.length > 0) setSheepData(domba);
+    if (lain.length > 0) setProdukLain(lain);
+  };
+
+  const loadProfile = async (uid: string, email: string) => {
+    const { data } = await supabase.from("profiles").select("*").eq("id", uid).single();
+    if (data) {
+      setRole(data.role as Role);
+      setUserProfile({ nama: data.nama_lengkap, email, hp: data.no_hp });
+    } else {
+      setRole("user");
+      setUserProfile({ nama: "", email, hp: "" });
+    }
+  };
+
+  useEffect(() => {
+    loadSettings();
+    loadProducts();
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setAuthUser(session.user);
+        loadProfile(session.user.id, session.user.email || "");
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session) {
+        setAuthUser(session.user);
+        loadProfile(session.user.id, session.user.email || "");
+      } else {
+        setAuthUser(null);
+        setRole("guest");
+        setUserProfile({ nama: "", email: "", hp: "" });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLoginDemo = (r: Role) => { setRole(r); setPage("beranda"); };
+
+  const handleLogout = async () => {
+    if (authUser) await supabase.auth.signOut();
+    setRole("guest");
+    setAuthUser(null);
+    setPage("beranda");
+  };
+
+  const handleSaveSheep = async (form: Omit<Sheep, "id">, file: File | null, editId: string | null) => {
+    const productData = {
+      kategori: "domba" as const,
+      nama: form.nama,
+      deskripsi: form.deskripsi,
+      harga: form.harga,
+      satuan: "ekor",
+      stok: 1,
+      status: form.status,
+    };
+
+    let productId = editId;
+
+    if (editId) {
+      await supabase.from("products").update(productData).eq("id", editId);
+      await supabase.from("domba_spesifikasi").update({
+        jenis_kelamin: form.jenisKelamin,
+        umur_bulan: form.umurBulan,
+        berat_kg: form.beratKg,
+        tinggi_cm: form.tinggiCm,
+      }).eq("product_id", editId);
+    } else {
+      const { data } = await supabase.from("products").insert(productData).select("id").single();
+      if (!data) return;
+      productId = data.id;
+      await supabase.from("domba_spesifikasi").insert({
+        product_id: productId,
+        jenis_kelamin: form.jenisKelamin,
+        umur_bulan: form.umurBulan,
+        berat_kg: form.beratKg,
+        tinggi_cm: form.tinggiCm,
+      });
+    }
+
+    if (file && productId) {
+      const imageUrl = await uploadImageToServer(file);
+      const { data: existing } = await supabase.from("product_images")
+        .select("id").eq("product_id", productId).eq("is_primary", true).single();
+      if (existing) {
+        await supabase.from("product_images").update({ image_url: imageUrl }).eq("id", existing.id);
+      } else {
+        await supabase.from("product_images").insert({ product_id: productId, image_url: imageUrl, is_primary: true });
+      }
+    }
+
+    await loadProducts();
+  };
+
+  const handleDeleteSheep = async (id: string) => {
+    setSheepData(prev => prev.filter(s => s.id !== id));
+    await supabase.from("products").delete().eq("id", id);
+  };
+
+  const handleSaveProduk = async (form: Omit<ProdukLain, "id">, file: File | null, editId: string | null) => {
+    const productData = {
+      kategori: "lainnya" as const,
+      nama: form.nama,
+      deskripsi: form.kategori,
+      harga: form.harga,
+      satuan: form.satuan,
+      stok: form.stok,
+      status: "tersedia" as const,
+    };
+
+    let productId = editId;
+
+    if (editId) {
+      await supabase.from("products").update(productData).eq("id", editId);
+    } else {
+      const { data } = await supabase.from("products").insert(productData).select("id").single();
+      if (!data) return;
+      productId = data.id;
+    }
+
+    if (file && productId) {
+      const imageUrl = await uploadImageToServer(file);
+      const { data: existing } = await supabase.from("product_images")
+        .select("id").eq("product_id", productId).single();
+      if (existing) {
+        await supabase.from("product_images").update({ image_url: imageUrl }).eq("id", existing.id);
+      } else {
+        await supabase.from("product_images").insert({ product_id: productId, image_url: imageUrl, is_primary: true });
+      }
+    }
+
+    await loadProducts();
+  };
+
+  const handleDeleteProduk = async (id: string) => {
+    setProdukLain(prev => prev.filter(p => p.id !== id));
+    await supabase.from("products").delete().eq("id", id);
+  };
+
+  const handleSaveProfile = async (form: { nama: string; email: string; hp: string }) => {
+    setUserProfile(form);
+    if (authUser) {
+      await supabase.from("profiles").update({
+        nama_lengkap: form.nama,
+        no_hp: form.hp,
+      }).eq("id", authUser.id);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -1585,11 +2097,23 @@ export default function App() {
         {page === "beranda" && <PageBeranda setPage={setPage} setSelectedId={setSelectedId} role={role} cfg={cfg} produkLain={produkLain} sheepData={sheepData} />}
         {page === "katalog" && <PageKatalog setPage={setPage} setSelectedId={setSelectedId} sheepData={sheepData} />}
         {page === "detail" && <PageDetail id={selectedId} setPage={setPage} role={role} wa={cfg.whatsapp} sheepData={sheepData} cfg={cfg} />}
-        {page === "login" && <PageLogin setPage={setPage} onLogin={handleLogin} />}
-        {page === "signup" && <PageSignup setPage={setPage} onLogin={handleLogin} />}
+        {page === "login" && <PageLogin setPage={setPage} onLoginDemo={handleLoginDemo} />}
+        {page === "signup" && <PageSignup setPage={setPage} />}
         {page === "cicilan" && role !== "guest" && <PageCicilan cfg={cfg} />}
-        {page === "admin" && role === "admin" && <PageAdmin cfg={cfg} setCfg={setCfg} produkLain={produkLain} setProdukLain={setProdukLain} sheepData={sheepData} setSheepData={setSheepData} />}
-        {page === "profil" && role !== "guest" && <PageProfil role={role} />}
+        {page === "admin" && role === "admin" && (
+          <PageAdmin
+            cfg={cfg} setCfg={handleSaveSettings}
+            produkLain={produkLain} setProdukLain={setProdukLain}
+            sheepData={sheepData} setSheepData={setSheepData}
+            onSaveSheep={handleSaveSheep} onDeleteSheep={handleDeleteSheep}
+            onSaveProduk={handleSaveProduk} onDeleteProduk={handleDeleteProduk}
+            dbAvailable={dbAvailable}
+            adminProfile={userProfile}
+          />
+        )}
+        {page === "profil" && role !== "guest" && (
+          <PageProfil role={role} profile={userProfile} onSaveProfile={handleSaveProfile} />
+        )}
       </main>
 
       <WAButton wa={cfg.whatsapp} />
