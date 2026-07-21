@@ -1,0 +1,1598 @@
+import { useState } from "react";
+import {
+  Search, Menu, X, Phone, Star, Filter, Weight, Ruler,
+  Calendar, CheckCircle, Clock, AlertCircle, ArrowRight,
+  LogOut, User, Shield, Package, CreditCard, BarChart2,
+  Edit2, Trash2, Plus, Upload, Check, Home, MessageCircle,
+  ArrowLeft, Settings, ChevronRight, Image, Info, Save,
+  Eye, EyeOff, Lock, MapPin
+} from "lucide-react";
+
+// ── Types ─────────────────────────────────────────────────────────────
+type Page = "beranda" | "katalog" | "detail" | "login" | "signup" | "cicilan" | "admin" | "profil";
+type Role = "guest" | "user" | "admin";
+
+interface SiteConfig {
+  heroImage: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  whatsapp: string;
+  alamat: string;
+  alamatLengkap: string;
+  googleMaps: string;
+  namaFarm: string;
+  namaBank: string;
+  norek: string;
+  namaRekening: string;
+  // Paket cicilan
+  cicilanAktif: boolean;
+  cicilanJudul: string;
+  cicilanDeskripsi: string;
+  cicilanMaksimal: string;
+  cicilanDeadline: string;
+}
+
+interface Sheep {
+  id: string; kode: string; nama: string; harga: number;
+  status: "tersedia" | "dipesan" | "terjual";
+  jenisKelamin: "jantan" | "betina";
+  umurBulan: number; beratKg: number; tinggiCm: number;
+  foto: string[]; deskripsi: string;
+}
+
+interface ProdukLain {
+  id: string;
+  nama: string;
+  kategori: string;
+  harga: number;
+  satuan: string;
+  stok: number;
+  foto: string;
+}
+
+const DEFAULT_PRODUK_LAIN: ProdukLain[] = [
+  { id: "p1", nama: "Hampas Tahu", kategori: "Pakan", harga: 15000, satuan: "karung", stok: 120, foto: "https://images.unsplash.com/photo-1464226184884-fa280b87c399?w=400&h=300&fit=crop&auto=format" },
+  { id: "p2", nama: "Pupuk Kandang (Kohe)", kategori: "Pupuk", harga: 25000, satuan: "karung", stok: 80, foto: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=300&fit=crop&auto=format" },
+  { id: "p3", nama: "Jerami Fermentasi", kategori: "Pakan", harga: 20000, satuan: "karung", stok: 0, foto: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=400&h=300&fit=crop&auto=format" },
+];
+
+// ── Mock Data ─────────────────────────────────────────────────────────
+const DEFAULT_SHEEP_DATA: Sheep[] = [
+  { id: "1", kode: "DMB-001", nama: "Gareng", harga: 4500000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 18, beratKg: 42, tinggiCm: 68, foto: ["https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=800&h=600&fit=crop&auto=format", "https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan sehat, bertubuh besar dan gemuk. Cocok untuk qurban Idul Adha. Sudah divaksin lengkap." },
+  { id: "2", kode: "DMB-002", nama: "Petruk", harga: 5200000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 24, beratKg: 56, tinggiCm: 74, foto: ["https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan premium, bulu tebal dan bersih. Sangat aktif dan sehat." },
+  { id: "3", kode: "DMB-003", nama: "Semar", harga: 3800000, status: "dipesan", jenisKelamin: "betina", umurBulan: 15, beratKg: 35, tinggiCm: 62, foto: ["https://images.unsplash.com/photo-1555169062-013468b47731?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba betina muda, sehat dan lincah. Ideal untuk pembibitan atau qurban." },
+  { id: "4", kode: "DMB-004", nama: "Bagong", harga: 6100000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 30, beratKg: 68, tinggiCm: 80, foto: ["https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan super — ukuran besar, otot kuat, bulu lebat." },
+  { id: "5", kode: "DMB-005", nama: "Srikandi", harga: 4100000, status: "terjual", jenisKelamin: "betina", umurBulan: 20, beratKg: 38, tinggiCm: 65, foto: ["https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba betina dewasa dengan postur bagus." },
+  { id: "6", kode: "DMB-006", nama: "Arjuna", harga: 4800000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 22, beratKg: 50, tinggiCm: 71, foto: ["https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan dengan proporsi tubuh ideal. Bulu bersih, gigi lengkap." },
+];
+
+const fmtRp = (n: number) => "Rp " + n.toLocaleString("id-ID");
+
+// ── Status Badge ──────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: Sheep["status"] }) {
+  const cfg = {
+    tersedia: { label: "Tersedia", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+    dipesan: { label: "Dipesan", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+    terjual: { label: "Terjual", cls: "bg-stone-200 text-stone-500 border-stone-300" },
+  }[status];
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${cfg.cls}`}>{cfg.label}</span>;
+}
+
+// ── Foto Upload ───────────────────────────────────────────────────────
+function FotoUpload({ value, onChange, label = "Foto", aspect = "aspect-[16/9]" }: {
+  value: string; onChange: (url: string) => void; label?: string; aspect?: string;
+}) {
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) onChange(URL.createObjectURL(file));
+  };
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{label}</label>
+      <label className={`block relative ${aspect} rounded-xl overflow-hidden bg-muted border-2 border-dashed border-border cursor-pointer hover:border-primary/50 transition-colors group`}>
+        {value
+          ? <img src={value} alt="preview" className="w-full h-full object-cover" />
+          : <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground group-hover:text-primary transition-colors">
+              <Upload className="w-6 h-6" />
+              <span className="text-xs font-medium">Klik untuk upload foto</span>
+            </div>
+        }
+        {value && (
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <span className="text-white text-xs font-semibold flex items-center gap-1.5"><Upload className="w-4 h-4" /> Ganti Foto</span>
+          </div>
+        )}
+        <input type="file" accept="image/*" onChange={handleFile} className="sr-only" />
+      </label>
+    </div>
+  );
+}
+
+// ── WA Float Button ───────────────────────────────────────────────────
+function WAButton({ wa }: { wa: string }) {
+  return (
+    <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer"
+      className="fixed bottom-6 right-6 z-50 bg-[#25D366] text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform">
+      <MessageCircle className="w-6 h-6 fill-white" />
+    </a>
+  );
+}
+
+// ── Navbar ────────────────────────────────────────────────────────────
+function Navbar({ page, role, setPage, onLogout }: { page: Page; role: Role; setPage: (p: Page) => void; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <nav className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b border-border">
+      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+        <button onClick={() => setPage("beranda")} className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
+            <span className="text-primary-foreground text-xs font-bold font-display">D</span>
+          </div>
+          <span className="font-display font-bold text-foreground text-base">Dapur<span className="text-accent">Domba</span></span>
+        </button>
+
+        <div className="hidden md:flex items-center gap-5">
+          {[
+            { label: "Beranda", p: "beranda" as Page },
+            { label: "Katalog", p: "katalog" as Page },
+            ...(role === "user" ? [{ label: "Cicilan Saya", p: "cicilan" as Page }] : []),
+            ...(role === "admin" ? [{ label: "Dashboard", p: "admin" as Page }] : []),
+          ].map(({ label, p }) => (
+            <button key={p} onClick={() => setPage(p)} className={`text-sm font-medium transition-colors ${page === p ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>{label}</button>
+          ))}
+        </div>
+
+        <div className="hidden md:flex items-center gap-2">
+          {role === "guest" ? (
+            <>
+              <button onClick={() => setPage("login")} className="text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 transition-colors">Masuk</button>
+              <button onClick={() => setPage("signup")} className="text-sm font-semibold bg-primary text-primary-foreground px-4 py-1.5 rounded-xl hover:bg-primary/90 transition-colors">Daftar</button>
+            </>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button onClick={() => setPage("profil")} className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-xl hover:bg-muted transition-colors">
+                <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center">
+                  <User className="w-3.5 h-3.5 text-primary" />
+                </div>
+                {role === "admin" ? "Admin" : "Profil"}
+              </button>
+              <button onClick={onLogout} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-colors"><LogOut className="w-4 h-4" /></button>
+            </div>
+          )}
+        </div>
+
+        <button className="md:hidden p-2" onClick={() => setOpen(!open)}>
+          {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </div>
+
+      {open && (
+        <div className="md:hidden border-t border-border bg-card px-4 pb-4 pt-2 space-y-1">
+          {[
+            { label: "Beranda", p: "beranda" as Page },
+            { label: "Katalog Domba", p: "katalog" as Page },
+            ...(role === "user" ? [{ label: "Cicilan Saya", p: "cicilan" as Page }] : []),
+            ...(role === "admin" ? [{ label: "Dashboard Admin", p: "admin" as Page }] : []),
+            ...(role !== "guest" ? [{ label: "Profil Saya", p: "profil" as Page }] : []),
+          ].map(({ label, p }) => (
+            <button key={p} onClick={() => { setPage(p); setOpen(false); }} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">{label}</button>
+          ))}
+          <div className="pt-2 border-t border-border flex gap-2">
+            {role === "guest" ? (
+              <>
+                <button onClick={() => { setPage("login"); setOpen(false); }} className="flex-1 text-sm font-medium border border-border py-2.5 rounded-xl hover:bg-muted transition-colors">Masuk</button>
+                <button onClick={() => { setPage("signup"); setOpen(false); }} className="flex-1 text-sm font-semibold bg-primary text-primary-foreground py-2.5 rounded-xl hover:bg-primary/90 transition-colors">Daftar</button>
+              </>
+            ) : (
+              <button onClick={onLogout} className="w-full text-sm font-medium text-muted-foreground border border-border py-2.5 rounded-xl hover:bg-muted transition-colors">Keluar</button>
+            )}
+          </div>
+        </div>
+      )}
+    </nav>
+  );
+}
+
+// ── PAGE: Beranda ─────────────────────────────────────────────────────
+function PageBeranda({ setPage, setSelectedId, role, cfg, produkLain, sheepData }: { setPage: (p: Page) => void; setSelectedId: (id: string) => void; role: Role; cfg: SiteConfig; produkLain: ProdukLain[]; sheepData: Sheep[] }) {
+  const featured = sheepData.filter(s => s.status === "tersedia").slice(0, 3);
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-6 space-y-10">
+
+      {/* Hero Card */}
+      <div className="relative rounded-3xl overflow-hidden h-56 md:h-72 bg-muted">
+        <img src={cfg.heroImage} alt="Peternakan" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 p-5 md:p-7">
+          <div className="inline-flex items-center gap-1.5 bg-accent/90 text-accent-foreground text-xs font-semibold px-2.5 py-1 rounded-full mb-2">
+            <Star className="w-3 h-3 fill-current" /> Sejak 2008
+          </div>
+          <h1 className="font-display text-2xl md:text-4xl font-bold text-white leading-tight mb-3">{cfg.heroTitle}</h1>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setPage("katalog")} className="flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-xl text-xs font-semibold hover:bg-primary/90 transition-colors">
+              Lihat Katalog <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <a href={`https://wa.me/${cfg.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm text-white border border-white/30 px-4 py-2 rounded-xl text-xs font-semibold hover:bg-white/30 transition-colors">
+              <Phone className="w-3.5 h-3.5" /> WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Featured domba */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-accent text-xs font-semibold uppercase tracking-widest mb-0.5">Unggulan</p>
+            <h2 className="font-display text-xl font-bold text-foreground">Domba Pilihan</h2>
+          </div>
+          <button onClick={() => setPage("katalog")} className="text-sm text-primary font-medium flex items-center gap-1 hover:opacity-80 transition-opacity">
+            Lihat semua <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+        {/* Mobile: horizontal scroll */}
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory no-scrollbar sm:hidden">
+          {featured.map(s => (
+            <div key={s.id} className="flex-none w-44 snap-start">
+              <SheepCardCompact sheep={s} onClick={() => { setSelectedId(s.id); setPage("detail"); }} />
+            </div>
+          ))}
+        </div>
+        {/* Desktop: grid */}
+        <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {featured.map(s => (
+            <SheepCard key={s.id} sheep={s} onClick={() => { setSelectedId(s.id); setPage("detail"); }} />
+          ))}
+        </div>
+      </div>
+
+      {/* Cicilan banner */}
+      {cfg.cicilanAktif && (
+        <div className="bg-primary rounded-3xl p-6 md:p-8">
+          <p className="text-amber-300 text-xs font-semibold uppercase tracking-widest mb-2">Idul Adha — Batas {cfg.cicilanDeadline}</p>
+          <h2 className="font-display text-xl md:text-2xl font-bold text-white mb-3 leading-tight">{cfg.cicilanJudul}</h2>
+          <p className="text-white/75 text-sm mb-4 leading-relaxed">{cfg.cicilanDeskripsi}</p>
+          <ul className="space-y-2 mb-5">
+            {[
+              `Cicilan hingga ${cfg.cicilanMaksimal}× tanpa bunga`,
+              "Domba langsung dikandangkan atas nama Anda",
+              "Upload bukti transfer di aplikasi",
+              "Konfirmasi dalam 1×24 jam",
+            ].map(item => (
+              <li key={item} className="flex items-start gap-2 text-sm text-white/80">
+                <CheckCircle className="w-4 h-4 text-amber-300 flex-shrink-0 mt-0.5" /> {item}
+              </li>
+            ))}
+          </ul>
+          <button onClick={() => role === "guest" ? setPage("login") : setPage("cicilan")} className="flex items-center gap-2 bg-amber-400 text-amber-900 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-300 transition-colors">
+            {role === "guest" ? "Masuk untuk Daftar" : "Lihat Cicilan Saya"} <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Produk Lainnya */}
+      {produkLain.length > 0 && (
+        <div>
+          <div className="mb-3">
+            <p className="text-accent text-xs font-semibold uppercase tracking-widest mb-0.5">Tersedia Juga</p>
+            <h2 className="font-display text-xl font-bold text-foreground">Produk Lainnya</h2>
+          </div>
+          {/* Mobile: horizontal scroll */}
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory no-scrollbar sm:hidden">
+            {produkLain.map(p => (
+              <div key={p.id} className="flex-none w-40 snap-start bg-card border border-border rounded-2xl overflow-hidden">
+                <div className="h-28 bg-muted overflow-hidden">
+                  {p.foto ? <img src={p.foto} alt={p.nama} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="w-6 h-6" /></div>}
+                </div>
+                <div className="p-3">
+                  <span className="text-xs text-muted-foreground">{p.kategori}</span>
+                  <p className="font-semibold text-xs text-foreground mt-0.5 mb-1 leading-tight">{p.nama}</p>
+                  <p className="text-accent font-bold text-xs">{fmtRp(p.harga)}<span className="text-muted-foreground font-normal">/{p.satuan}</span></p>
+                  <span className={`inline-block mt-1.5 text-xs px-1.5 py-0.5 rounded-full font-semibold ${p.stok > 0 ? "bg-emerald-100 text-emerald-700" : "bg-stone-200 text-stone-500"}`}>
+                    {p.stok > 0 ? `Stok ${p.stok}` : "Habis"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop: grid */}
+          <div className="hidden sm:grid sm:grid-cols-3 gap-4">
+            {produkLain.map(p => (
+              <div key={p.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:shadow-md transition-shadow">
+                <div className="h-36 bg-muted overflow-hidden">
+                  {p.foto ? <img src={p.foto} alt={p.nama} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="w-8 h-8" /></div>}
+                </div>
+                <div className="p-4">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{p.kategori}</span>
+                  <h3 className="font-semibold text-foreground mt-0.5 mb-2">{p.nama}</h3>
+                  <div className="flex items-center justify-between">
+                    <span className="text-accent font-bold text-sm">{fmtRp(p.harga)}<span className="text-muted-foreground font-normal text-xs">/{p.satuan}</span></span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${p.stok > 0 ? "bg-emerald-100 text-emerald-700" : "bg-stone-200 text-stone-500"}`}>
+                      {p.stok > 0 ? `Stok ${p.stok}` : "Habis"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Footer info */}
+      <div className="bg-card border border-border rounded-2xl p-5 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
+        <div className="flex-1">
+          <div className="font-display font-bold text-foreground mb-1">{cfg.namaFarm}</div>
+          <div className="text-sm text-muted-foreground">{cfg.alamat}</div>
+        </div>
+        <a href={`https://wa.me/${cfg.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-semibold text-[#25D366] hover:opacity-80 transition-opacity">
+          <MessageCircle className="w-4 h-4 fill-[#25D366]" /> +{cfg.whatsapp.replace(/(\d{2})(\d{3})(\d{4})(\d+)/, "$1 $2-$3-$4")}
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ── Sheep Card ────────────────────────────────────────────────────────
+function SheepCard({ sheep, onClick }: { sheep: Sheep; onClick: () => void }) {
+  return (
+    <div onClick={sheep.status !== "terjual" ? onClick : undefined}
+      className={`group bg-card rounded-2xl overflow-hidden border border-border transition-all duration-200 ${sheep.status !== "terjual" ? "cursor-pointer hover:shadow-md hover:-translate-y-0.5" : "opacity-60"}`}>
+      <div className="relative h-44 bg-muted overflow-hidden">
+        <img src={sheep.foto[0]} alt={sheep.nama} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <div className="absolute top-2.5 left-2.5"><StatusBadge status={sheep.status} /></div>
+        <div className="absolute top-2.5 right-2.5 bg-black/40 text-white text-xs px-2 py-0.5 rounded-full font-mono">{sheep.kode}</div>
+      </div>
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-display font-semibold text-foreground">{sheep.nama}</h3>
+          <span className="text-xs text-muted-foreground capitalize">{sheep.jenisKelamin}</span>
+        </div>
+        <p className="text-accent font-bold text-sm mb-3">{fmtRp(sheep.harga)}</p>
+        <div className="flex gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><Weight className="w-3 h-3" />{sheep.beratKg} kg</span>
+          <span className="flex items-center gap-1"><Ruler className="w-3 h-3" />{sheep.tinggiCm} cm</span>
+          <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{sheep.umurBulan} bln</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sheep Card Compact (mobile scroll) ───────────────────────────────
+function SheepCardCompact({ sheep, onClick }: { sheep: Sheep; onClick: () => void }) {
+  return (
+    <div onClick={sheep.status !== "terjual" ? onClick : undefined}
+      className={`bg-card rounded-2xl overflow-hidden border border-border transition-all duration-200 ${sheep.status !== "terjual" ? "cursor-pointer active:scale-95" : "opacity-60"}`}>
+      <div className="relative h-32 bg-muted overflow-hidden">
+        {sheep.foto[0]
+          ? <img src={sheep.foto[0]} alt={sheep.nama} className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="w-6 h-6" /></div>}
+        <div className="absolute top-2 left-2"><StatusBadge status={sheep.status} /></div>
+      </div>
+      <div className="p-2.5">
+        <p className="font-display font-semibold text-foreground text-xs leading-tight mb-0.5">{sheep.nama}</p>
+        <p className="text-accent font-bold text-xs">{fmtRp(sheep.harga)}</p>
+        <div className="flex gap-2 text-muted-foreground mt-1.5" style={{ fontSize: "10px" }}>
+          <span className="flex items-center gap-0.5"><Weight className="w-2.5 h-2.5" />{sheep.beratKg}kg</span>
+          <span className="flex items-center gap-0.5"><Calendar className="w-2.5 h-2.5" />{sheep.umurBulan}bln</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PAGE: Katalog ─────────────────────────────────────────────────────
+function PageKatalog({ setPage, setSelectedId, sheepData }: { setPage: (p: Page) => void; setSelectedId: (id: string) => void; sheepData: Sheep[] }) {
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("semua");
+  const [filterJK, setFilterJK] = useState("semua");
+  const [showFilter, setShowFilter] = useState(false);
+
+  const filtered = sheepData.filter(s => {
+    if (search && !s.nama.toLowerCase().includes(search.toLowerCase()) && !s.kode.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterStatus !== "semua" && s.status !== filterStatus) return false;
+    if (filterJK !== "semua" && s.jenisKelamin !== filterJK) return false;
+    return true;
+  });
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-6">
+      <div className="mb-5">
+        <p className="text-accent text-xs font-semibold uppercase tracking-widest mb-0.5">Katalog</p>
+        <h1 className="font-display text-2xl font-bold text-foreground">Semua Domba</h1>
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input type="text" placeholder="Cari nama atau kode..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+        </div>
+        <button onClick={() => setShowFilter(!showFilter)}
+          className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${showFilter ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}>
+          <Filter className="w-4 h-4" /> Filter
+        </button>
+      </div>
+
+      {showFilter && (
+        <div className="bg-card border border-border rounded-2xl p-4 mb-4 grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">Status</label>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full bg-input-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none">
+              {[["semua", "Semua"], ["tersedia", "Tersedia"], ["dipesan", "Dipesan"], ["terjual", "Terjual"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">Jenis Kelamin</label>
+            <select value={filterJK} onChange={e => setFilterJK(e.target.value)} className="w-full bg-input-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none">
+              {[["semua", "Semua"], ["jantan", "Jantan"], ["betina", "Betina"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground mb-4">{filtered.length} domba ditemukan</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map(s => <SheepCard key={s.id} sheep={s} onClick={() => { setSelectedId(s.id); setPage("detail"); }} />)}
+      </div>
+
+      {filtered.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <div className="text-4xl mb-3">🐑</div>
+          <p className="font-semibold mb-1">Tidak ditemukan</p>
+          <p className="text-sm">Coba ubah filter atau kata kunci.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── PAGE: Detail ──────────────────────────────────────────────────────
+function PageDetail({ id, setPage, role, wa, sheepData, cfg }: { id: string; setPage: (p: Page) => void; role: Role; wa: string; sheepData: Sheep[]; cfg: SiteConfig }) {
+  const sheep = sheepData.find(s => s.id === id);
+  const [activePhoto, setActivePhoto] = useState(0);
+  const [showOrder, setShowOrder] = useState(false);
+  const [metodeBayar, setMetodeBayar] = useState<"cod" | "transfer" | null>(null);
+  if (!sheep) return null;
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-6">
+      <button onClick={() => setPage("katalog")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
+        <ArrowLeft className="w-4 h-4" /> Kembali
+      </button>
+      <div className="grid md:grid-cols-2 gap-6">
+        <div>
+          <div className="rounded-2xl overflow-hidden bg-muted mb-2 aspect-[4/3]">
+            <img src={sheep.foto[activePhoto]} alt={sheep.nama} className="w-full h-full object-cover" />
+          </div>
+          {sheep.foto.length > 1 && (
+            <div className="flex gap-2">
+              {sheep.foto.map((f, i) => (
+                <button key={i} onClick={() => setActivePhoto(i)} className={`w-14 h-14 rounded-xl overflow-hidden border-2 transition-colors ${i === activePhoto ? "border-primary" : "border-transparent opacity-60"}`}>
+                  <img src={f} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <StatusBadge status={sheep.status} />
+            <span className="font-mono text-xs text-muted-foreground">{sheep.kode}</span>
+          </div>
+          <h1 className="font-display text-2xl font-bold text-foreground mt-2 mb-1">{sheep.nama}</h1>
+          <p className="text-2xl font-bold text-accent mb-5">{fmtRp(sheep.harga)}</p>
+
+          <div className="bg-muted rounded-2xl p-4 mb-4 grid grid-cols-2 gap-3">
+            {[
+              { icon: <User className="w-4 h-4" />, label: "Jenis Kelamin", value: sheep.jenisKelamin === "jantan" ? "Jantan" : "Betina" },
+              { icon: <Calendar className="w-4 h-4" />, label: "Umur", value: `${sheep.umurBulan} bulan` },
+              { icon: <Weight className="w-4 h-4" />, label: "Berat", value: `${sheep.beratKg} kg` },
+              { icon: <Ruler className="w-4 h-4" />, label: "Tinggi", value: `${sheep.tinggiCm} cm` },
+            ].map(s => (
+              <div key={s.label} className="flex items-center gap-2">
+                <div className="text-muted-foreground flex-shrink-0">{s.icon}</div>
+                <div>
+                  <div className="text-xs text-muted-foreground">{s.label}</div>
+                  <div className="font-semibold text-sm">{s.value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-sm text-muted-foreground leading-relaxed mb-5">{sheep.deskripsi}</p>
+
+          <div className="space-y-2.5">
+            {sheep.status === "tersedia" ? (
+              <>
+                {role === "guest" ? (
+                  <button onClick={() => setPage("login")} className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
+                    Masuk untuk Pesan
+                  </button>
+                ) : (
+                  <button onClick={() => { setShowOrder(true); setMetodeBayar(null); }}
+                    className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
+                    Pesan Sekarang
+                  </button>
+                )}
+
+                {/* Panel pilihan transaksi */}
+                {showOrder && (
+                  <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+                    <p className="font-semibold text-sm text-foreground">Pilih Cara Transaksi</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => setMetodeBayar("cod")}
+                        className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-sm font-semibold transition-colors ${metodeBayar === "cod" ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                        <MapPin className="w-5 h-5" /> Bayar di Tempat
+                      </button>
+                      <button onClick={() => setMetodeBayar("transfer")}
+                        className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-sm font-semibold transition-colors ${metodeBayar === "transfer" ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}>
+                        <CreditCard className="w-5 h-5" /> Transfer Bank
+                      </button>
+                    </div>
+
+                    {/* COD detail */}
+                    {metodeBayar === "cod" && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
+                        <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wide">Bayar di Tempat (COD)</p>
+                        <div className="flex items-start gap-2 text-sm text-emerald-900">
+                          <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-600" />
+                          <span>{cfg.alamatLengkap || cfg.alamat}</span>
+                        </div>
+                        {cfg.googleMaps && (
+                          <a href={cfg.googleMaps} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-900 underline underline-offset-2">
+                            <MapPin className="w-3.5 h-3.5" /> Lihat di Google Maps
+                          </a>
+                        )}
+                        <a href={`https://wa.me/${wa}?text=Halo, saya ingin memesan domba ${sheep.nama} (${sheep.kode}) seharga ${fmtRp(sheep.harga)} dengan bayar di tempat (COD).`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 bg-[#25D366] text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-[#20b658] transition-colors mt-1">
+                          <MessageCircle className="w-4 h-4 fill-white" /> Konfirmasi via WhatsApp
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Transfer detail */}
+                    {metodeBayar === "transfer" && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+                        <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Transfer Bank</p>
+                        <div className="bg-white rounded-xl p-3 border border-blue-100 space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-muted-foreground">Bank</span>
+                            <span className="font-bold text-sm">{cfg.namaBank}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-muted-foreground">No. Rekening</span>
+                            <span className="font-bold text-sm font-mono tracking-wider">{cfg.norek}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-muted-foreground">Atas Nama</span>
+                            <span className="font-semibold text-sm">{cfg.namaRekening}</span>
+                          </div>
+                          <div className="border-t border-blue-100 pt-1.5 flex justify-between items-center">
+                            <span className="text-xs text-muted-foreground">Jumlah Transfer</span>
+                            <span className="font-bold text-base text-accent">{fmtRp(sheep.harga)}</span>
+                          </div>
+                        </div>
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                          <p className="text-xs text-amber-800 leading-relaxed">
+                            Setelah transfer sesuai harga di atas, kirim <span className="font-semibold">bukti transfernya ke WhatsApp</span> admin.
+                          </p>
+                        </div>
+                        {cfg.alamatLengkap && (
+                          <div className="flex items-start gap-2 text-xs text-blue-800">
+                            <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-blue-500" />
+                            <span>{cfg.alamatLengkap}</span>
+                          </div>
+                        )}
+                        {cfg.googleMaps && (
+                          <a href={cfg.googleMaps} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 underline underline-offset-2">
+                            <MapPin className="w-3.5 h-3.5" /> Lihat di Google Maps
+                          </a>
+                        )}
+                        <a href={`https://wa.me/${wa}?text=Halo, saya sudah transfer untuk domba ${sheep.nama} (${sheep.kode}) seharga ${fmtRp(sheep.harga)}. Berikut bukti transfernya.`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 bg-[#25D366] text-white py-2.5 rounded-xl font-semibold text-sm hover:bg-[#20b658] transition-colors">
+                          <MessageCircle className="w-4 h-4 fill-white" /> Kirim Bukti Transfer via WA
+                        </a>
+                      </div>
+                    )}
+
+                    <button onClick={() => setShowOrder(false)} className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
+                      Batal
+                    </button>
+                  </div>
+                )}
+
+                {!showOrder && (
+                  <a href={`https://wa.me/${wa}?text=Halo, saya tertarik domba ${sheep.nama} (${sheep.kode}) seharga ${fmtRp(sheep.harga)}.`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 border border-border py-3 rounded-xl font-semibold text-sm hover:bg-muted transition-colors">
+                    <MessageCircle className="w-4 h-4 text-[#25D366]" /> Chat WhatsApp Admin
+                  </a>
+                )}
+              </>
+            ) : (
+              <div className="bg-muted rounded-xl p-4 text-center text-sm text-muted-foreground">
+                Domba ini sudah {sheep.status === "dipesan" ? "dipesan" : "terjual"}.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PAGE: Login ───────────────────────────────────────────────────────
+function PageLogin({ setPage, onLogin }: { setPage: (p: Page) => void; onLogin: (r: Role) => void }) {
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [show, setShow] = useState(false);
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-6">
+          <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <Lock className="w-5 h-5 text-primary" />
+          </div>
+          <h1 className="font-display text-xl font-bold">Selamat Datang</h1>
+          <p className="text-sm text-muted-foreground mt-1">Masuk ke akun DapurDomba kamu</p>
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@kamu.com"
+              className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Password</label>
+            <div className="relative">
+              <input type={show ? "text" : "password"} value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••"
+                className="w-full px-3 py-2.5 pr-10 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="pt-1 space-y-2">
+            <button onClick={() => onLogin("user")} className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
+              Masuk sebagai User
+            </button>
+            <button onClick={() => onLogin("admin")} className="w-full py-2.5 bg-secondary/20 text-secondary border border-secondary/30 rounded-xl font-semibold text-sm hover:bg-secondary/30 transition-colors">
+              Masuk sebagai Admin (Demo)
+            </button>
+          </div>
+        </div>
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          Belum punya akun? <button onClick={() => setPage("signup")} className="text-primary font-medium hover:underline">Daftar</button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── PAGE: Signup ──────────────────────────────────────────────────────
+function PageSignup({ setPage, onLogin }: { setPage: (p: Page) => void; onLogin: (r: Role) => void }) {
+  const [form, setForm] = useState({ nama: "", email: "", hp: "", pass: "" });
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-6">
+          <h1 className="font-display text-xl font-bold">Buat Akun Baru</h1>
+          <p className="text-sm text-muted-foreground mt-1">Bergabung dengan DapurDomba</p>
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
+          {[
+            { id: "nama", label: "Nama Lengkap", type: "text", placeholder: "Budi Santoso" },
+            { id: "email", label: "Email", type: "email", placeholder: "budi@email.com" },
+            { id: "hp", label: "No. HP / WhatsApp", type: "tel", placeholder: "08xxxxxxxx" },
+            { id: "pass", label: "Password", type: "password", placeholder: "Min. 8 karakter" },
+          ].map(f => (
+            <div key={f.id}>
+              <label className="block text-sm font-medium mb-1.5">{f.label}</label>
+              <input type={f.type} value={(form as any)[f.id]} onChange={e => setForm(v => ({ ...v, [f.id]: e.target.value }))} placeholder={f.placeholder}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          ))}
+          <button onClick={() => onLogin("user")} className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors mt-1">
+            Buat Akun
+          </button>
+        </div>
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          Sudah punya akun? <button onClick={() => setPage("login")} className="text-primary font-medium hover:underline">Masuk</button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── PAGE: Cicilan ─────────────────────────────────────────────────────
+function PageCicilan({ cfg }: { cfg: SiteConfig }) {
+  const [uploaded, setUploaded] = useState(false);
+  const totalHarga = 4500000, sudahDibayar = 3000000;
+  const sisa = totalHarga - sudahDibayar;
+  const pct = Math.round((sudahDibayar / totalHarga) * 100);
+  const cicilanPerBulan = Math.ceil(totalHarga / parseInt(cfg.cicilanMaksimal || "3"));
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+      <div>
+        <p className="text-accent text-xs font-semibold uppercase tracking-widest mb-0.5">Akun Saya</p>
+        <h1 className="font-display text-2xl font-bold">Cicilan Saya</h1>
+      </div>
+
+      {/* Card rekening pembayaran */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+        <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <CreditCard className="w-3.5 h-3.5" /> Bayar Cicilan ke Rekening Ini
+        </p>
+        <div className="bg-white rounded-xl border border-amber-100 divide-y divide-amber-100">
+          {[
+            { label: "Bank", value: cfg.namaBank },
+            { label: "No. Rekening", value: cfg.norek, mono: true },
+            { label: "Atas Nama", value: cfg.namaRekening },
+            { label: "Cicilan per Bulan", value: fmtRp(cicilanPerBulan), bold: true },
+          ].map(r => (
+            <div key={r.label} className="flex items-center justify-between px-3 py-2.5">
+              <span className="text-xs text-muted-foreground">{r.label}</span>
+              <span className={`text-sm ${r.mono ? "font-mono tracking-wider" : ""} ${r.bold ? "font-bold text-accent" : "font-semibold"}`}>{r.value}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-amber-700 mt-3 leading-relaxed">
+          Setelah transfer, segera upload bukti pembayaran di bawah atau kirim ke WhatsApp admin.
+        </p>
+      </div>
+
+      <div className="bg-primary text-primary-foreground rounded-2xl p-5">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <p className="text-primary-foreground/60 text-xs mb-0.5">Paket Aktif</p>
+            <p className="font-display font-bold">Gareng (DMB-001)</p>
+          </div>
+          <span className="bg-amber-400/20 text-amber-300 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-400/30">Aktif</span>
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+          {[
+            { label: "Total", value: fmtRp(totalHarga), color: "text-white" },
+            { label: "Dibayar", value: fmtRp(sudahDibayar), color: "text-emerald-400" },
+            { label: "Sisa", value: fmtRp(sisa), color: "text-amber-300" },
+          ].map(s => (
+            <div key={s.label}>
+              <p className="text-primary-foreground/50 text-xs mb-0.5">{s.label}</p>
+              <p className={`font-bold text-xs md:text-sm ${s.color}`}>{s.value}</p>
+            </div>
+          ))}
+        </div>
+        <div>
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-primary-foreground/60">Progress</span>
+            <span className="font-semibold">{pct}%</span>
+          </div>
+          <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h2 className="font-semibold mb-3">Riwayat Pembayaran</h2>
+        <div className="space-y-3">
+          {[
+            { ke: 1, tanggal: "15 Mar 2026", jumlah: 1500000, status: "terkonfirmasi" },
+            { ke: 2, tanggal: "15 Mei 2026", jumlah: 1500000, status: "terkonfirmasi" },
+            { ke: 3, tanggal: "15 Jul 2026", jumlah: 1500000, status: "menunggu_konfirmasi" },
+          ].map(r => (
+            <div key={r.ke} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
+              <div className="flex items-center gap-2.5">
+                {r.status === "terkonfirmasi" ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Clock className="w-4 h-4 text-amber-500" />}
+                <div>
+                  <p className="text-sm font-medium">Cicilan ke-{r.ke}</p>
+                  <p className="text-xs text-muted-foreground">{r.tanggal}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold text-sm">{fmtRp(r.jumlah)}</p>
+                <p className={`text-xs font-medium ${r.status === "terkonfirmasi" ? "text-emerald-600" : "text-amber-600"}`}>
+                  {r.status === "terkonfirmasi" ? "Terkonfirmasi" : "Menunggu"}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <div className="flex items-center gap-2.5 mb-4">
+          <AlertCircle className="w-4 h-4 text-amber-500" />
+          <div>
+            <p className="font-semibold text-sm">Jatuh Tempo Berikutnya</p>
+            <p className="text-xs text-muted-foreground">15 Jul 2026 — {fmtRp(1500000)}</p>
+          </div>
+        </div>
+        <div className="bg-muted rounded-xl p-4 border-2 border-dashed border-border text-center">
+          {uploaded ? (
+            <div className="flex items-center justify-center gap-2 text-emerald-600 font-semibold text-sm">
+              <CheckCircle className="w-4 h-4" /> Bukti diupload! Menunggu konfirmasi admin.
+            </div>
+          ) : (
+            <>
+              <Upload className="w-5 h-5 text-muted-foreground mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground mb-3">Upload bukti transfer cicilan ke-3</p>
+              <button onClick={() => setUploaded(true)} className="bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
+                Upload Bukti Transfer
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PAGE: Profil (User & Admin shared) ───────────────────────────────
+function PageProfil({ role }: { role: Role }) {
+  const defaults = role === "admin"
+    ? { nama: "Admin DapurDomba", email: "admin@dapurdomba.id", hp: "081111111111" }
+    : { nama: "Budi Santoso", email: "budi@email.com", hp: "081234567890" };
+
+  const [form, setForm] = useState(defaults);
+  const [passForm, setPassForm] = useState({ lama: "", baru: "", konfirmasi: "" });
+  const [savedProfile, setSavedProfile] = useState(false);
+  const [savedPass, setSavedPass] = useState(false);
+  const [showPass, setShowPass] = useState({ lama: false, baru: false, konfirmasi: false });
+
+  const handleSaveProfile = () => {
+    setSavedProfile(true);
+    setTimeout(() => setSavedProfile(false), 2500);
+  };
+  const handleSavePass = () => {
+    setSavedPass(true);
+    setPassForm({ lama: "", baru: "", konfirmasi: "" });
+    setTimeout(() => setSavedPass(false), 2500);
+  };
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
+      <div>
+        <p className="text-accent text-xs font-semibold uppercase tracking-widest mb-0.5">Akun</p>
+        <h1 className="font-display text-2xl font-bold">Profil Saya</h1>
+      </div>
+
+      {/* Avatar */}
+      <div className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4">
+        <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center">
+          {role === "admin" ? <Shield className="w-7 h-7 text-primary" /> : <User className="w-7 h-7 text-primary" />}
+        </div>
+        <div>
+          <p className="font-display font-semibold text-lg">{form.nama}</p>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{role === "admin" ? "Administrator" : "Pembeli"}</span>
+        </div>
+      </div>
+
+      {/* Edit data diri */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h2 className="font-semibold mb-4 flex items-center gap-2"><User className="w-4 h-4 text-muted-foreground" /> Data Diri</h2>
+        <div className="space-y-3">
+          {[
+            { id: "nama", label: "Nama Lengkap", type: "text" },
+            { id: "email", label: "Email", type: "email" },
+            { id: "hp", label: "No. HP / WhatsApp", type: "tel" },
+          ].map(f => (
+            <div key={f.id}>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{f.label}</label>
+              <input type={f.type} value={(form as any)[f.id]} onChange={e => setForm(v => ({ ...v, [f.id]: e.target.value }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          ))}
+          <button onClick={handleSaveProfile}
+            className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedProfile ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+            {savedProfile ? <><Check className="w-4 h-4" /> Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan Perubahan</>}
+          </button>
+        </div>
+      </div>
+
+      {/* Ganti password */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h2 className="font-semibold mb-4 flex items-center gap-2"><Lock className="w-4 h-4 text-muted-foreground" /> Ganti Password</h2>
+        <div className="space-y-3">
+          {[
+            { id: "lama", label: "Password Lama" },
+            { id: "baru", label: "Password Baru" },
+            { id: "konfirmasi", label: "Konfirmasi Password Baru" },
+          ].map(f => (
+            <div key={f.id}>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{f.label}</label>
+              <div className="relative">
+                <input type={(showPass as any)[f.id] ? "text" : "password"} value={(passForm as any)[f.id]} onChange={e => setPassForm(v => ({ ...v, [f.id]: e.target.value }))} placeholder="••••••••"
+                  className="w-full px-3 py-2.5 pr-10 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <button type="button" onClick={() => setShowPass(v => ({ ...v, [f.id]: !(v as any)[f.id] }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {(showPass as any)[f.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          ))}
+          <button onClick={handleSavePass}
+            className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedPass ? "bg-emerald-600 text-white" : "bg-secondary text-secondary-foreground hover:bg-secondary/90"}`}>
+            {savedPass ? <><Check className="w-4 h-4" /> Password Diubah!</> : "Ganti Password"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PAGE: Admin Dashboard ─────────────────────────────────────────────
+function PageAdmin({ cfg, setCfg, produkLain, setProdukLain, sheepData, setSheepData }: {
+  cfg: SiteConfig; setCfg: (c: SiteConfig) => void;
+  produkLain: ProdukLain[]; setProdukLain: (p: ProdukLain[]) => void;
+  sheepData: Sheep[]; setSheepData: (s: Sheep[]) => void;
+}) {
+  const [tab, setTab] = useState<"produk" | "produk_lain" | "pesanan" | "cicilan" | "user" | "pengaturan">("produk");
+
+  const TABS = [
+    { id: "produk", label: "Domba", icon: <Package className="w-4 h-4" /> },
+    { id: "produk_lain", label: "Produk Lain", icon: <Package className="w-4 h-4" /> },
+    { id: "pesanan", label: "Pesanan", icon: <BarChart2 className="w-4 h-4" /> },
+    { id: "cicilan", label: "Cicilan", icon: <CreditCard className="w-4 h-4" /> },
+    { id: "user", label: "Pengguna", icon: <User className="w-4 h-4" /> },
+    { id: "pengaturan", label: "Pengaturan", icon: <Settings className="w-4 h-4" /> },
+  ] as const;
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-6">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center">
+          <Shield className="w-4 h-4 text-primary" />
+        </div>
+        <div>
+          <p className="text-accent text-xs font-semibold uppercase tracking-widest leading-none">Panel Pengelola</p>
+          <h1 className="font-display text-xl font-bold">Dashboard Admin</h1>
+        </div>
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        {[
+          { label: "Domba Tersedia", value: sheepData.filter(s => s.status === "tersedia").length, color: "text-emerald-700" },
+          { label: "Pesanan Masuk", value: 12, color: "text-amber-700" },
+          { label: "Cicilan Aktif", value: 42, color: "text-blue-700" },
+          { label: "Pendapatan", value: "48jt", color: "text-primary" },
+        ].map(s => (
+          <div key={s.label} className="bg-card border border-border rounded-2xl p-4">
+            <div className={`font-display text-3xl font-bold ${s.color}`}>{s.value}</div>
+            <div className="text-muted-foreground text-xs mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-muted rounded-xl p-1 mb-5 overflow-x-auto no-scrollbar">
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${tab === t.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab: Produk */}
+      {tab === "produk" && <TabDomba sheepData={sheepData} setSheepData={setSheepData} />}
+
+      {/* Tab: Produk Lain */}
+      {tab === "produk_lain" && (
+        <TabProdukLain produkLain={produkLain} setProdukLain={setProdukLain} />
+      )}
+
+      {/* Tab: Pesanan */}
+      {tab === "pesanan" && (
+        <div>
+          <h2 className="font-semibold mb-3">Pesanan Masuk</h2>
+          <div className="space-y-2.5">
+            {[
+              { id: "ORD-001", pembeli: "Budi Santoso", domba: "Gareng", total: 4500000, status: "menunggu_konfirmasi" },
+              { id: "ORD-002", pembeli: "Siti Rahayu", domba: "Arjuna", total: 4800000, status: "diproses" },
+              { id: "ORD-003", pembeli: "Ahmad Fauzi", domba: "Petruk", total: 5200000, status: "selesai" },
+            ].map(o => (
+              <div key={o.id} className="bg-card border border-border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                    <span className="font-semibold text-sm">{o.pembeli}</span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${o.status === "selesai" ? "bg-emerald-100 text-emerald-700" : o.status === "diproses" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
+                      {o.status.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">{o.id} · {o.domba} · <span className="text-accent font-semibold">{fmtRp(o.total)}</span></div>
+                </div>
+                <select defaultValue={o.status} className="bg-input-background border border-border rounded-xl px-3 py-2 text-xs focus:outline-none self-start sm:self-auto">
+                  {["menunggu_konfirmasi", "diproses", "selesai", "dibatalkan"].map(s => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Cicilan */}
+      {tab === "cicilan" && (
+        <div>
+          <h2 className="font-semibold mb-3">Kelola Cicilan</h2>
+          <div className="space-y-3">
+            {[
+              { user: "Budi Santoso", domba: "Gareng (DMB-001)", total: 4500000, dibayar: 3000000, cicilan: "3/3", bukti: true },
+              { user: "Siti Rahayu", domba: "Arjuna (DMB-006)", total: 4800000, dibayar: 1600000, cicilan: "1/3", bukti: false },
+            ].map((c, i) => (
+              <div key={i} className="bg-card border border-border rounded-2xl p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="font-semibold text-sm">{c.user}</p>
+                    <p className="text-xs text-muted-foreground">{c.domba}</p>
+                  </div>
+                  <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">Cicilan {c.cicilan}</span>
+                </div>
+                <div className="flex gap-4 text-xs mb-3">
+                  <span className="text-muted-foreground">Total: <b className="text-foreground">{fmtRp(c.total)}</b></span>
+                  <span className="text-muted-foreground">Dibayar: <b className="text-emerald-600">{fmtRp(c.dibayar)}</b></span>
+                  <span className="text-muted-foreground">Sisa: <b className="text-amber-600">{fmtRp(c.total - c.dibayar)}</b></span>
+                </div>
+                {c.bukti && (
+                  <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span className="text-xs text-amber-800 flex-1">Bukti transfer menunggu konfirmasi</span>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors">Konfirmasi</button>
+                      <button className="bg-destructive text-destructive-foreground px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-destructive/90 transition-colors">Tolak</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: User */}
+      {tab === "user" && (
+        <div>
+          <h2 className="font-semibold mb-3">Daftar Pengguna</h2>
+          <div className="space-y-2.5">
+            {[
+              { nama: "Budi Santoso", email: "budi@email.com", hp: "081234567890", role: "user", join: "12 Jan 2026" },
+              { nama: "Siti Rahayu", email: "siti@email.com", hp: "082345678901", role: "user", join: "3 Feb 2026" },
+              { nama: "Ahmad Fauzi", email: "ahmad@email.com", hp: "083456789012", role: "user", join: "20 Mar 2026" },
+              { nama: "Admin DapurDomba", email: "admin@dapurdomba.id", hp: "081111111111", role: "admin", join: "1 Jan 2026" },
+            ].map(u => (
+              <div key={u.email} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <span className="font-semibold text-sm">{u.nama}</span>
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${u.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{u.role}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                </div>
+                <p className="text-xs text-muted-foreground flex-shrink-0 hidden sm:block">{u.join}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Pengaturan */}
+      {tab === "pengaturan" && <TabPengaturan cfg={cfg} setCfg={setCfg} />}
+
+    </div>
+  );
+}
+
+// ── Tab Domba (Admin) ─────────────────────────────────────────────────
+const EMPTY_SHEEP: Omit<Sheep, "id"> = {
+  kode: "", nama: "", harga: 0, status: "tersedia",
+  jenisKelamin: "jantan", umurBulan: 0, beratKg: 0, tinggiCm: 0,
+  foto: [], deskripsi: "",
+};
+
+function TabDomba({ sheepData, setSheepData }: { sheepData: Sheep[]; setSheepData: (s: Sheep[]) => void }) {
+  const [editId, setEditId] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<Omit<Sheep, "id">>({ ...EMPTY_SHEEP });
+  const [saved, setSaved] = useState(false);
+
+  const openAdd = () => { setForm({ ...EMPTY_SHEEP }); setEditId(null); setShowForm(true); setSaved(false); };
+  const openEdit = (s: Sheep) => {
+    setForm({ kode: s.kode, nama: s.nama, harga: s.harga, status: s.status, jenisKelamin: s.jenisKelamin, umurBulan: s.umurBulan, beratKg: s.beratKg, tinggiCm: s.tinggiCm, foto: [...s.foto], deskripsi: s.deskripsi });
+    setEditId(s.id); setShowForm(true); setSaved(false);
+  };
+  const handleDelete = (id: string) => setSheepData(sheepData.filter(s => s.id !== id));
+  const handleSave = () => {
+    if (!form.nama.trim() || !form.kode.trim()) return;
+    if (editId) {
+      setSheepData(sheepData.map(s => s.id === editId ? { ...form, id: editId } : s));
+    } else {
+      setSheepData([...sheepData, { ...form, id: Date.now().toString() }]);
+    }
+    setSaved(true);
+    setTimeout(() => { setShowForm(false); setSaved(false); }, 1200);
+  };
+
+  const handleFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setForm(v => ({ ...v, foto: [URL.createObjectURL(file), ...v.foto.slice(1)] }));
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold">Daftar Domba</h2>
+        <button onClick={openAdd} className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-2 rounded-xl text-xs font-semibold hover:bg-primary/90 transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Tambah
+        </button>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="bg-card border border-border rounded-2xl p-5 mb-4 space-y-4">
+          <h3 className="font-semibold text-sm">{editId ? "Edit Data Domba" : "Tambah Domba Baru"}</h3>
+
+          {/* Foto upload */}
+          <label className="block relative aspect-[4/3] rounded-xl overflow-hidden bg-muted border-2 border-dashed border-border cursor-pointer hover:border-primary/50 transition-colors group">
+            {form.foto[0]
+              ? <img src={form.foto[0]} alt="preview" className="w-full h-full object-cover" />
+              : <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground group-hover:text-primary transition-colors">
+                  <Upload className="w-7 h-7" />
+                  <span className="text-xs font-medium">Klik untuk upload foto domba</span>
+                </div>
+            }
+            {form.foto[0] && (
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <span className="text-white text-xs font-semibold flex items-center gap-1.5"><Upload className="w-4 h-4" /> Ganti Foto</span>
+              </div>
+            )}
+            <input type="file" accept="image/*" onChange={handleFoto} className="sr-only" />
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Kode</label>
+              <input value={form.kode} onChange={e => setForm(v => ({ ...v, kode: e.target.value }))} placeholder="DMB-007"
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Nama</label>
+              <input value={form.nama} onChange={e => setForm(v => ({ ...v, nama: e.target.value }))} placeholder="Bima"
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Harga (Rp)</label>
+              <input type="number" value={form.harga || ""} onChange={e => setForm(v => ({ ...v, harga: parseInt(e.target.value) || 0 }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Status</label>
+              <select value={form.status} onChange={e => setForm(v => ({ ...v, status: e.target.value as Sheep["status"] }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none">
+                {[["tersedia", "Tersedia"], ["dipesan", "Dipesan"], ["terjual", "Terjual"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Jenis Kelamin</label>
+              <select value={form.jenisKelamin} onChange={e => setForm(v => ({ ...v, jenisKelamin: e.target.value as Sheep["jenisKelamin"] }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none">
+                <option value="jantan">Jantan</option>
+                <option value="betina">Betina</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Umur (bulan)</label>
+              <input type="number" value={form.umurBulan || ""} onChange={e => setForm(v => ({ ...v, umurBulan: parseInt(e.target.value) || 0 }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Berat (kg)</label>
+              <input type="number" value={form.beratKg || ""} onChange={e => setForm(v => ({ ...v, beratKg: parseInt(e.target.value) || 0 }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Tinggi (cm)</label>
+              <input type="number" value={form.tinggiCm || ""} onChange={e => setForm(v => ({ ...v, tinggiCm: parseInt(e.target.value) || 0 }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Deskripsi</label>
+              <textarea value={form.deskripsi} onChange={e => setForm(v => ({ ...v, deskripsi: e.target.value }))} rows={2}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={handleSave}
+              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${saved ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+              {saved ? <><Check className="w-4 h-4" /> Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan</>}
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      <div className="space-y-2.5">
+        {sheepData.map(s => (
+          <div key={s.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-14 h-14 rounded-xl bg-muted overflow-hidden flex-shrink-0">
+              {s.foto[0] ? <img src={s.foto[0]} alt={s.nama} className="w-full h-full object-cover" /> : <Package className="w-6 h-6 m-4 text-muted-foreground" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                <span className="font-semibold text-sm">{s.nama}</span>
+                <span className="font-mono text-xs text-muted-foreground">{s.kode}</span>
+                <StatusBadge status={s.status} />
+              </div>
+              <span className="text-accent font-bold text-xs">{fmtRp(s.harga)}</span>
+              <span className="text-muted-foreground text-xs ml-2">{s.beratKg} kg · {s.umurBulan} bln</span>
+            </div>
+            <div className="flex gap-1 flex-shrink-0">
+              <button onClick={() => openEdit(s)} className="p-2 text-muted-foreground hover:text-primary rounded-xl hover:bg-muted transition-colors"><Edit2 className="w-4 h-4" /></button>
+              <button onClick={() => handleDelete(s.id)} className="p-2 text-muted-foreground hover:text-destructive rounded-xl hover:bg-muted transition-colors"><Trash2 className="w-4 h-4" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Tab Produk Lain (Admin) ───────────────────────────────────────────
+const EMPTY_PRODUK: Omit<ProdukLain, "id"> = { nama: "", kategori: "", harga: 0, satuan: "karung", stok: 0, foto: "" };
+
+function TabProdukLain({ produkLain, setProdukLain }: { produkLain: ProdukLain[]; setProdukLain: (p: ProdukLain[]) => void }) {
+  const [editId, setEditId] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState<Omit<ProdukLain, "id">>({ ...EMPTY_PRODUK });
+  const [saved, setSaved] = useState(false);
+
+  const openAdd = () => { setForm({ ...EMPTY_PRODUK }); setEditId(null); setShowForm(true); setSaved(false); };
+  const openEdit = (p: ProdukLain) => { setForm({ nama: p.nama, kategori: p.kategori, harga: p.harga, satuan: p.satuan, stok: p.stok, foto: p.foto }); setEditId(p.id); setShowForm(true); setSaved(false); };
+
+  const handleSave = () => {
+    if (!form.nama.trim()) return;
+    if (editId) {
+      setProdukLain(produkLain.map(p => p.id === editId ? { ...form, id: editId } : p));
+    } else {
+      setProdukLain([...produkLain, { ...form, id: Date.now().toString() }]);
+    }
+    setSaved(true);
+    setTimeout(() => { setShowForm(false); setSaved(false); }, 1200);
+  };
+
+  const handleDelete = (id: string) => setProdukLain(produkLain.filter(p => p.id !== id));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold">Produk Lainnya</h2>
+        <button onClick={openAdd} className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-2 rounded-xl text-xs font-semibold hover:bg-primary/90 transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Tambah
+        </button>
+      </div>
+
+      {/* Form tambah / edit */}
+      {showForm && (
+        <div className="bg-card border border-border rounded-2xl p-5 mb-4 space-y-3">
+          <h3 className="font-semibold text-sm">{editId ? "Edit Produk" : "Tambah Produk Baru"}</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { id: "nama", label: "Nama Produk", type: "text", full: true },
+              { id: "kategori", label: "Kategori", type: "text", full: false },
+              { id: "satuan", label: "Satuan (misal: karung, kg)", type: "text", full: false },
+            ].map(f => (
+              <div key={f.id} className={f.full ? "col-span-2" : ""}>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">{f.label}</label>
+                <input type={f.type} value={(form as any)[f.id]} onChange={e => setForm(v => ({ ...v, [f.id]: e.target.value }))}
+                  className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+            ))}
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Harga (Rp)</label>
+              <input type="number" value={form.harga || ""} onChange={e => setForm(v => ({ ...v, harga: parseInt(e.target.value) || 0 }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Stok</label>
+              <input type="number" value={form.stok || ""} onChange={e => setForm(v => ({ ...v, stok: parseInt(e.target.value) || 0 }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div className="col-span-2">
+              <FotoUpload value={form.foto} onChange={url => setForm(v => ({ ...v, foto: url }))} label="Foto Produk" aspect="aspect-[16/7]" />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleSave}
+              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${saved ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+              {saved ? <><Check className="w-4 h-4" /> Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan</>}
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List produk */}
+      {produkLain.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground bg-card border border-border rounded-2xl">
+          <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Belum ada produk. Klik Tambah untuk mulai.</p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {produkLain.map(p => (
+            <div key={p.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
+              <div className="w-14 h-14 rounded-xl bg-muted overflow-hidden flex-shrink-0">
+                {p.foto ? <img src={p.foto} alt={p.nama} className="w-full h-full object-cover" /> : <Package className="w-6 h-6 m-auto text-muted-foreground mt-4" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                  <span className="font-semibold text-sm">{p.nama}</span>
+                  <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{p.kategori}</span>
+                </div>
+                <span className="text-accent font-bold text-xs">{fmtRp(p.harga)}/{p.satuan}</span>
+                <span className={`ml-2 text-xs font-semibold ${p.stok > 0 ? "text-emerald-600" : "text-stone-400"}`}>
+                  {p.stok > 0 ? `Stok: ${p.stok}` : "Habis"}
+                </span>
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <button onClick={() => openEdit(p)} className="p-2 text-muted-foreground hover:text-primary rounded-xl hover:bg-muted transition-colors"><Edit2 className="w-4 h-4" /></button>
+                <button onClick={() => handleDelete(p.id)} className="p-2 text-muted-foreground hover:text-destructive rounded-xl hover:bg-muted transition-colors"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tab Pengaturan (Admin) ─────────────────────────────────────────────
+function TabPengaturan({ cfg, setCfg }: { cfg: SiteConfig; setCfg: (c: SiteConfig) => void }) {
+  const [local, setLocal] = useState<SiteConfig>({ ...cfg });
+  const [savedSite, setSavedSite] = useState(false);
+
+  // Profile
+  const [profileForm, setProfileForm] = useState({ nama: "Admin DapurDomba", email: "admin@dapurdomba.id", hp: "081111111111" });
+  const [savedProfile, setSavedProfile] = useState(false);
+  const [passForm, setPassForm] = useState({ lama: "", baru: "", konfirmasi: "" });
+  const [savedPass, setSavedPass] = useState(false);
+  const [showPass, setShowPass] = useState({ lama: false, baru: false, konfirmasi: false });
+
+  const handleSaveSite = () => {
+    setCfg(local);
+    setSavedSite(true);
+    setTimeout(() => setSavedSite(false), 2500);
+  };
+  const handleSaveProfile = () => { setSavedProfile(true); setTimeout(() => setSavedProfile(false), 2500); };
+  const handleSavePass = () => { setSavedPass(true); setPassForm({ lama: "", baru: "", konfirmasi: "" }); setTimeout(() => setSavedPass(false), 2500); };
+
+  return (
+    <div className="space-y-5">
+
+      {/* Profil Admin */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-semibold mb-4 flex items-center gap-2"><User className="w-4 h-4 text-muted-foreground" /> Profil Admin</h3>
+        <div className="space-y-3">
+          {[
+            { id: "nama", label: "Nama Lengkap", type: "text" },
+            { id: "email", label: "Email", type: "email" },
+            { id: "hp", label: "No. HP / WhatsApp", type: "tel" },
+          ].map(f => (
+            <div key={f.id}>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{f.label}</label>
+              <input type={f.type} value={(profileForm as any)[f.id]} onChange={e => setProfileForm(v => ({ ...v, [f.id]: e.target.value }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          ))}
+          <button onClick={handleSaveProfile}
+            className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedProfile ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+            {savedProfile ? <><Check className="w-4 h-4" /> Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan Profil</>}
+          </button>
+        </div>
+      </div>
+
+      {/* Ganti password admin */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-semibold mb-4 flex items-center gap-2"><Lock className="w-4 h-4 text-muted-foreground" /> Ganti Password</h3>
+        <div className="space-y-3">
+          {[
+            { id: "lama", label: "Password Lama" },
+            { id: "baru", label: "Password Baru" },
+            { id: "konfirmasi", label: "Konfirmasi Password Baru" },
+          ].map(f => (
+            <div key={f.id}>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{f.label}</label>
+              <div className="relative">
+                <input type={(showPass as any)[f.id] ? "text" : "password"} value={(passForm as any)[f.id]} onChange={e => setPassForm(v => ({ ...v, [f.id]: e.target.value }))} placeholder="••••••••"
+                  className="w-full px-3 py-2.5 pr-10 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <button type="button" onClick={() => setShowPass(v => ({ ...v, [f.id]: !(v as any)[f.id] }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {(showPass as any)[f.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          ))}
+          <button onClick={handleSavePass}
+            className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedPass ? "bg-emerald-600 text-white" : "bg-secondary text-secondary-foreground hover:bg-secondary/90"}`}>
+            {savedPass ? <><Check className="w-4 h-4" /> Password Diubah!</> : "Ganti Password"}
+          </button>
+        </div>
+      </div>
+
+      {/* Info website */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-semibold mb-4 flex items-center gap-2"><Info className="w-4 h-4 text-muted-foreground" /> Informasi Farm</h3>
+        <div className="space-y-3">
+          {[
+            { id: "namaFarm", label: "Nama Farm", type: "text" },
+            { id: "whatsapp", label: "No. WhatsApp Admin (tanpa +)", type: "tel" },
+            { id: "alamat", label: "Alamat Singkat", type: "text" },
+            { id: "alamatLengkap", label: "Alamat Lengkap (ditampilkan ke pembeli)", type: "text" },
+            { id: "googleMaps", label: "Link Google Maps", type: "url" },
+          ].map(f => (
+            <div key={f.id}>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{f.label}</label>
+              <input type={f.type} value={(local as any)[f.id]} onChange={e => setLocal(v => ({ ...v, [f.id]: e.target.value }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Rekening Bank */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-semibold mb-4 flex items-center gap-2"><CreditCard className="w-4 h-4 text-muted-foreground" /> Rekening Bank (untuk Transfer)</h3>
+        <div className="space-y-3">
+          {[
+            { id: "namaBank", label: "Nama Bank (misal: BRI, BCA, Mandiri)", type: "text" },
+            { id: "norek", label: "Nomor Rekening", type: "text" },
+            { id: "namaRekening", label: "Nama Pemilik Rekening", type: "text" },
+          ].map(f => (
+            <div key={f.id}>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{f.label}</label>
+              <input type={f.type} value={(local as any)[f.id]} onChange={e => setLocal(v => ({ ...v, [f.id]: e.target.value }))}
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Paket Cicilan */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold flex items-center gap-2"><CreditCard className="w-4 h-4 text-muted-foreground" /> Paket Cicilan Idul Adha</h3>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <span className="text-xs text-muted-foreground">{local.cicilanAktif ? "Aktif" : "Nonaktif"}</span>
+            <div
+              onClick={() => setLocal(v => ({ ...v, cicilanAktif: !v.cicilanAktif }))}
+              className={`w-10 h-6 rounded-full relative transition-colors ${local.cicilanAktif ? "bg-primary" : "bg-muted"}`}>
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${local.cicilanAktif ? "translate-x-5" : "translate-x-1"}`} />
+            </div>
+          </label>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Judul Paket</label>
+            <input type="text" value={local.cicilanJudul} onChange={e => setLocal(v => ({ ...v, cicilanJudul: e.target.value }))}
+              className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Deskripsi Singkat</label>
+            <textarea value={local.cicilanDeskripsi} onChange={e => setLocal(v => ({ ...v, cicilanDeskripsi: e.target.value }))} rows={2}
+              className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Maks. Cicilan (kali)</label>
+              <input type="number" value={local.cicilanMaksimal} onChange={e => setLocal(v => ({ ...v, cicilanMaksimal: e.target.value }))} min="1" max="12"
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Batas Waktu Daftar</label>
+              <input type="text" value={local.cicilanDeadline} onChange={e => setLocal(v => ({ ...v, cicilanDeadline: e.target.value }))} placeholder="Juni 2026"
+                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Foto hero */}
+      <div className="bg-card border border-border rounded-2xl p-5">
+        <h3 className="font-semibold mb-4 flex items-center gap-2"><Image className="w-4 h-4 text-muted-foreground" /> Foto Hero Beranda</h3>
+        <div className="space-y-3">
+          <div>
+            <FotoUpload value={local.heroImage} onChange={url => setLocal(v => ({ ...v, heroImage: url }))} label="Foto Hero" aspect="aspect-[16/7]" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Judul Hero</label>
+            <input type="text" value={local.heroTitle} onChange={e => setLocal(v => ({ ...v, heroTitle: e.target.value }))}
+              className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Subjudul Hero</label>
+            <input type="text" value={local.heroSubtitle} onChange={e => setLocal(v => ({ ...v, heroSubtitle: e.target.value }))}
+              className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+        </div>
+      </div>
+
+      <button onClick={handleSaveSite}
+        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedSite ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+        {savedSite ? <><Check className="w-4 h-4" /> Semua Pengaturan Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan Semua Pengaturan</>}
+      </button>
+    </div>
+  );
+}
+
+// ── ROOT APP ──────────────────────────────────────────────────────────
+const DEFAULT_CFG: SiteConfig = {
+  heroImage: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=1600&h=900&fit=crop&auto=format",
+  heroTitle: "Domba Pilihan, Harga Jujur.",
+  heroSubtitle: "Paket cicilan Idul Adha tersedia",
+  whatsapp: "628123456789",
+  alamat: "Boyolali, Jawa Tengah",
+  alamatLengkap: "Jl. Peternakan No. 12, Boyolali, Jawa Tengah 57311",
+  googleMaps: "https://maps.google.com/?q=Boyolali,Jawa+Tengah",
+  namaFarm: "DapurDomba",
+  namaBank: "BRI",
+  norek: "1234-5678-9012-3456",
+  namaRekening: "Bapak Harto Wijaya",
+  cicilanAktif: true,
+  cicilanJudul: "Paket Cicilan Qurban — Ringan di Kantong",
+  cicilanDeskripsi: "Pilih domba sekarang, cicil hingga 3× pembayaran. Domba aman tersimpan di kandang kami.",
+  cicilanMaksimal: "3",
+  cicilanDeadline: "Juni 2026",
+};
+
+export default function App() {
+  const [page, setPage] = useState<Page>("beranda");
+  const [role, setRole] = useState<Role>("guest");
+  const [selectedId, setSelectedId] = useState("");
+  const [cfg, setCfg] = useState<SiteConfig>(DEFAULT_CFG);
+  const [produkLain, setProdukLain] = useState<ProdukLain[]>(DEFAULT_PRODUK_LAIN);
+  const [sheepData, setSheepData] = useState<Sheep[]>(DEFAULT_SHEEP_DATA);
+
+  const handleLogin = (r: Role) => { setRole(r); setPage("beranda"); };
+  const handleLogout = () => { setRole("guest"); setPage("beranda"); };
+
+  return (
+    <div className="min-h-screen bg-background" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+      <style>{`
+        .font-display { font-family: 'Playfair Display', Georgia, serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-thumb { background: rgba(92,67,32,0.2); border-radius: 99px; }
+      `}</style>
+
+      <Navbar page={page} role={role} setPage={setPage} onLogout={handleLogout} />
+
+      <main>
+        {page === "beranda" && <PageBeranda setPage={setPage} setSelectedId={setSelectedId} role={role} cfg={cfg} produkLain={produkLain} sheepData={sheepData} />}
+        {page === "katalog" && <PageKatalog setPage={setPage} setSelectedId={setSelectedId} sheepData={sheepData} />}
+        {page === "detail" && <PageDetail id={selectedId} setPage={setPage} role={role} wa={cfg.whatsapp} sheepData={sheepData} cfg={cfg} />}
+        {page === "login" && <PageLogin setPage={setPage} onLogin={handleLogin} />}
+        {page === "signup" && <PageSignup setPage={setPage} onLogin={handleLogin} />}
+        {page === "cicilan" && role !== "guest" && <PageCicilan cfg={cfg} />}
+        {page === "admin" && role === "admin" && <PageAdmin cfg={cfg} setCfg={setCfg} produkLain={produkLain} setProdukLain={setProdukLain} sheepData={sheepData} setSheepData={setSheepData} />}
+        {page === "profil" && role !== "guest" && <PageProfil role={role} />}
+      </main>
+
+      <WAButton wa={cfg.whatsapp} />
+    </div>
+  );
+}
