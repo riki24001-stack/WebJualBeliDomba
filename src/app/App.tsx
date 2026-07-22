@@ -704,16 +704,29 @@ function PageLogin({ setPage, onLoginDemo, waAdmin }: { setPage: (p: Page) => vo
     if (!hp || !pass) return;
     setLoading(true);
     setError("");
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email: hpToEmail(hp),
-      password: pass,
-    });
-    setLoading(false);
-    if (err) {
-      setError("No. HP atau password salah. Coba lagi.");
-      return;
+    try {
+      const { data, error: err } = await supabase.auth.signInWithPassword({
+        email: hpToEmail(hp),
+        password: pass,
+      });
+      
+      if (err) {
+        setLoading(false);
+        setError("No. HP atau password salah. Coba lagi.");
+        return;
+      }
+
+      // Pastikan session sudah ter-set dan profil dimuat sebelum pindah halaman
+      if (data?.session?.user) {
+        await loadProfile(data.session.user.id, data.session.user.email || "", data.session.user.user_metadata);
+      }
+      
+      setLoading(false);
+      setPage("beranda");
+    } catch (e) {
+      setLoading(false);
+      setError("Terjadi kesalahan sistem. Silakan coba lagi.");
     }
-    setPage("beranda");
   };
 
   return (
