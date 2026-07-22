@@ -1079,6 +1079,7 @@ function PageAdmin({
   onSaveSheep, onDeleteSheep,
   onSaveProduk, onDeleteProduk,
   dbAvailable,
+  adminProfile,
 }: {
   cfg: SiteConfig; setCfg: (c: SiteConfig) => void;
   produkLain: ProdukLain[]; setProdukLain: (p: ProdukLain[]) => void;
@@ -1641,13 +1642,14 @@ CREATE TRIGGER on_auth_user_created
 `;
 
 function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg: (c: SiteConfig) => void; adminProfile: { nama: string; email: string; hp: string } }) {
+  const safeProfile = { nama: adminProfile?.nama ?? "", email: adminProfile?.email ?? "", hp: adminProfile?.hp ?? "" };
   const [local, setLocal] = useState<SiteConfig>({ ...cfg });
   const [savedSite, setSavedSite] = useState(false);
   const [showMigration, setShowMigration] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const [profileForm, setProfileForm] = useState({ ...adminProfile });
-  useEffect(() => { setProfileForm({ ...adminProfile }); }, [adminProfile.nama, adminProfile.email, adminProfile.hp]);
+  const [profileForm, setProfileForm] = useState({ ...safeProfile });
+  useEffect(() => { setProfileForm({ ...safeProfile }); }, [safeProfile.nama, safeProfile.email, safeProfile.hp]);
   const [savedProfile, setSavedProfile] = useState(false);
   const [passForm, setPassForm] = useState({ lama: "", baru: "", konfirmasi: "" });
   const [savedPass, setSavedPass] = useState(false);
