@@ -1330,6 +1330,10 @@ function TabUser() {
   const [users, setUsers] = useState<{ id: string; nama_lengkap: string; no_hp: string; role: string; created_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [resetId, setResetId] = useState<string | null>(null);
+  const [newPass, setNewPass] = useState("");
+  const [resetMsg, setResetMsg] = useState<{ id: string; ok: boolean; text: string } | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     supabase.from("profiles").select("*").order("created_at", { ascending: false })
@@ -1341,6 +1345,32 @@ function TabUser() {
     await supabase.from("profiles").update({ role: newRole }).eq("id", id);
     setUsers(prev => prev.map(u => u.id === id ? { ...u, role: newRole } : u));
     setSaving(null);
+  };
+
+  const openReset = (id: string) => { setResetId(id); setNewPass(""); setResetMsg(null); };
+
+  const handleResetPassword = async (id: string) => {
+    if (newPass.trim().length < 6) {
+      setResetMsg({ id, ok: false, text: "Password minimal 6 karakter." });
+      return;
+    }
+    setResetting(true);
+    try {
+      const res = await fetch(`${SERVER_BASE}/admin-reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${publicAnonKey}` },
+        body: JSON.stringify({ userId: id, newPassword: newPass }),
+      });
+      const d = await res.json();
+      if (res.ok && d.ok) {
+        setResetMsg({ id, ok: true, text: `Berhasil! Password baru: ${newPass} — sampaikan ke pengguna via WhatsApp.` });
+      } else {
+        setResetMsg({ id, ok: false, text: d.error || "Gagal mereset password." });
+      }
+    } catch {
+      setResetMsg({ id, ok: false, text: "Gagal menghubungi server. Coba lagi." });
+    }
+    setResetting(false);
   };
 
   if (loading) return <div className="text-center py-12 text-muted-foreground text-sm">Memuat data pengguna...</div>;
@@ -1358,31 +1388,64 @@ function TabUser() {
       ) : (
         <div className="space-y-2.5">
           {users.map(u => (
-            <div key={u.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                  <span className="font-semibold text-sm">{u.nama_lengkap || "—"}</span>
-                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${u.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{u.role}</span>
+            <div key={u.id} className="bg-card border border-border rounded-2xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-primary" />
                 </div>
-                <p className="text-xs text-muted-foreground">{u.no_hp}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <span className="font-semibold text-sm">{u.nama_lengkap || "—"}</span>
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${u.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{u.role}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{u.no_hp}</p>
+                </div>
+                <select
+                  value={u.role}
+                  disabled={saving === u.id}
+                  onChange={e => handleRoleChange(u.id, e.target.value)}
+                  className="bg-input-background border border-border rounded-xl px-2 py-1.5 text-xs focus:outline-none disabled:opacity-60 cursor-pointer flex-shrink-0"
+                >
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                </select>
+                <button
+                  onClick={() => resetId === u.id ? setResetId(null) : openReset(u.id)}
+                  className="px-3 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors flex-shrink-0 flex items-center gap-1"
+                >
+                  <Lock className="w-3.5 h-3.5" /> {resetId === u.id ? "Batal" : "Reset Password"}
+                </button>
               </div>
-              <select
-                value={u.role}
-                disabled={saving === u.id}
-                onChange={e => handleRoleChange(u.id, e.target.value)}
-                className="bg-input-background border border-border rounded-xl px-2 py-1.5 text-xs focus:outline-none disabled:opacity-60 cursor-pointer flex-shrink-0"
-              >
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </select>
+
+              {resetId === u.id && (
+                <div className="mt-3 pt-3 border-t border-border space-y-2">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide">Password Baru</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newPass}
+                      onChange={e => setNewPass(e.target.value)}
+                      placeholder="Minimal 6 karakter"
+                      className="flex-1 px-3 py-2 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                    <button
+                      onClick={() => handleResetPassword(u.id)}
+                      disabled={resetting}
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
+                    >
+                      {resetting ? "..." : "Simpan"}
+                    </button>
+                  </div>
+                  {resetMsg && resetMsg.id === u.id && (
+                    <p className={`text-xs ${resetMsg.ok ? "text-emerald-700" : "text-red-600"}`}>{resetMsg.text}</p>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
-      <p className="text-xs text-muted-foreground mt-3 text-center">Ubah dropdown untuk ganti role. Perubahan langsung tersimpan.</p>
+      <p className="text-xs text-muted-foreground mt-3 text-center">Ubah dropdown untuk ganti role. Reset Password untuk atur ulang password pengguna secara manual (tanpa email).</p>
     </div>
   );
 }
