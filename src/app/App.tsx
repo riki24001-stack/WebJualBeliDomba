@@ -1270,35 +1270,71 @@ function PageAdmin({
         </div>
       )}
 
-      {tab === "user" && (
-        <div>
-          <h2 className="font-semibold mb-3">Daftar Pengguna</h2>
-          <div className="space-y-2.5">
-            {[
-              { nama: "Budi Santoso", email: "budi@email.com", hp: "081234567890", role: "user", join: "12 Jan 2026" },
-              { nama: "Siti Rahayu", email: "siti@email.com", hp: "082345678901", role: "user", join: "3 Feb 2026" },
-              { nama: "Ahmad Fauzi", email: "ahmad@email.com", hp: "083456789012", role: "user", join: "20 Mar 2026" },
-              { nama: "Admin DapurDomba", email: "admin@dapurdomba.id", hp: "081111111111", role: "admin", join: "1 Jan 2026" },
-            ].map(u => (
-              <div key={u.email} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <span className="font-semibold text-sm">{u.nama}</span>
-                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${u.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{u.role}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                </div>
-                <p className="text-xs text-muted-foreground flex-shrink-0 hidden sm:block">{u.join}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {tab === "user" && <TabUser />}
 
       {tab === "pengaturan" && <TabPengaturan cfg={cfg} setCfg={setCfg} adminProfile={adminProfile} />}
+    </div>
+  );
+}
+
+// ── Tab User (Admin) ──────────────────────────────────────────────────
+function TabUser() {
+  const [users, setUsers] = useState<{ id: string; nama_lengkap: string; no_hp: string; role: string; created_at: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.from("profiles").select("*").order("created_at", { ascending: false })
+      .then(({ data }) => { if (data) setUsers(data); setLoading(false); });
+  }, []);
+
+  const handleRoleChange = async (id: string, newRole: string) => {
+    setSaving(id);
+    await supabase.from("profiles").update({ role: newRole }).eq("id", id);
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, role: newRole } : u));
+    setSaving(null);
+  };
+
+  if (loading) return <div className="text-center py-12 text-muted-foreground text-sm">Memuat data pengguna...</div>;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold">Daftar Pengguna ({users.length})</h2>
+      </div>
+      {users.length === 0 ? (
+        <div className="text-center py-12 bg-card border border-border rounded-2xl">
+          <User className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Belum ada pengguna terdaftar</p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {users.map(u => (
+            <div key={u.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                <User className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                  <span className="font-semibold text-sm">{u.nama_lengkap || "—"}</span>
+                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${u.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>{u.role}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">{u.no_hp}</p>
+              </div>
+              <select
+                value={u.role}
+                disabled={saving === u.id}
+                onChange={e => handleRoleChange(u.id, e.target.value)}
+                className="bg-input-background border border-border rounded-xl px-2 py-1.5 text-xs focus:outline-none disabled:opacity-60 cursor-pointer flex-shrink-0"
+              >
+                <option value="user">user</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground mt-3 text-center">Ubah dropdown untuk ganti role. Perubahan langsung tersimpan.</p>
     </div>
   );
 }
