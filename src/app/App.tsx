@@ -925,6 +925,22 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
 
 // ── PAGE: Cicilan ─────────────────────────────────────────────────────
 function PageCicilan({ cfg }: { cfg: SiteConfig }) {
+  const [hasCicilan, setHasCicilan] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkCicilan = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      const { data } = await supabase.from("paket_cicilan").select("id").eq("user_id", user.id).eq("status", "aktif").limit(1);
+      setHasCicilan(!!data && data.length > 0);
+      setLoading(false);
+    };
+    checkCicilan();
+  }, []);
+
+  if (loading) return <div className="max-w-2xl mx-auto px-4 py-12 text-center text-muted-foreground">Memuat data...</div>;
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       <div>
@@ -932,27 +948,30 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
         <h1 className="font-display text-2xl font-bold">Cicilan Saya</h1>
       </div>
 
-      {/* Info rekening */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-        <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-          <CreditCard className="w-3.5 h-3.5" /> Bayar Cicilan ke Rekening Ini
-        </p>
-        <div className="bg-white rounded-xl border border-amber-100 divide-y divide-amber-100">
-          {[
-            { label: "Bank", value: cfg.namaBank },
-            { label: "No. Rekening", value: cfg.norek, mono: true },
-            { label: "Atas Nama", value: cfg.namaRekening },
-          ].map(r => (
-            <div key={r.label} className="flex items-center justify-between px-3 py-2.5">
-              <span className="text-xs text-muted-foreground">{r.label}</span>
-              <span className={`text-sm ${r.mono ? "font-mono tracking-wider" : "font-semibold"}`}>{r.value || "—"}</span>
-            </div>
-          ))}
+      {/* Info rekening - Hanya muncul jika ada cicilan aktif */}
+      {hasCicilan && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <CreditCard className="w-3.5 h-3.5" /> Bayar Cicilan ke Rekening Ini
+          </p>
+          <div className="bg-white rounded-xl border border-amber-100 divide-y divide-amber-100">
+            {[
+              { label: "Bank", value: cfg.namaBank },
+              { label: "No. Rekening", value: cfg.norek, mono: true },
+              { label: "Atas Nama", value: cfg.namaRekening },
+            ].map(r => (
+              <div key={r.label} className="flex items-center justify-between px-3 py-2.5">
+                <span className="text-xs text-muted-foreground">{r.label}</span>
+                <span className={`text-sm ${r.mono ? "font-mono tracking-wider" : "font-semibold"}`}>{r.value || "—"}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Empty state */}
-      <div className="text-center py-14 bg-card border border-border rounded-2xl">
+      {/* Empty state - Muncul jika tidak ada cicilan */}
+      {!hasCicilan && (
+        <div className="text-center py-14 bg-card border border-border rounded-2xl">
         <CreditCard className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
         <p className="font-semibold mb-1">Belum ada cicilan aktif</p>
         <p className="text-sm text-muted-foreground mb-4">Hubungi admin untuk mendaftarkan paket cicilan domba.</p>
