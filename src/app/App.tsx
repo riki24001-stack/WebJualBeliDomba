@@ -822,6 +822,10 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
         }
         return;
       }
+      // Set session dulu supaya RLS auth.uid() terbaca saat upsert
+      if (data?.session) {
+        await supabase.auth.setSession(data.session);
+      }
       // Buat profile manual jika trigger DB belum ada / gagal
       if (data?.user) {
         await supabase.from("profiles").upsert({
@@ -1071,17 +1075,18 @@ function PageProfil({ role, profile, onSaveProfile }: {
       <div className="bg-card border border-border rounded-2xl p-5">
         <h2 className="font-semibold mb-4 flex items-center gap-2"><User className="w-4 h-4 text-muted-foreground" /> Data Diri</h2>
         <div className="space-y-3">
-          {[
-            { id: "nama", label: "Nama Lengkap", type: "text" },
-            { id: "email", label: "Email", type: "email" },
-            { id: "hp", label: "No. HP / WhatsApp", type: "tel" },
-          ].map(f => (
-            <div key={f.id}>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">{f.label}</label>
-              <input type={f.type} value={(form as any)[f.id]} onChange={e => setForm(v => ({ ...v, [f.id]: e.target.value }))}
-                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-            </div>
-          ))}
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Nama Lengkap</label>
+            <input type="text" value={form.nama} onChange={e => setForm(v => ({ ...v, nama: e.target.value }))}
+              placeholder="Masukkan nama lengkap"
+              className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">No. HP / WhatsApp (Login)</label>
+            <input type="tel" value={form.hp} readOnly
+              className="w-full px-3 py-2.5 bg-muted border border-border rounded-xl text-sm text-muted-foreground cursor-not-allowed" />
+            <p className="text-xs text-muted-foreground mt-1">No. HP tidak bisa diubah karena digunakan untuk login.</p>
+          </div>
           <button onClick={handleSaveProfile}
             className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedProfile ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
             {savedProfile ? <><Check className="w-4 h-4" /> Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan Perubahan</>}
