@@ -8,7 +8,7 @@ import {
   Eye, EyeOff, Lock, MapPin, Copy, Database
 } from "lucide-react";
 import { supabase } from "../../utils/supabase/client";
-import { projectId } from "../../utils/supabase/info";
+import { projectId, publicAnonKey } from "../../utils/supabase/info";
 
 // ── Types ─────────────────────────────────────────────────────────────
 type Page = "beranda" | "katalog" | "detail" | "login" | "signup" | "cicilan" | "admin" | "profil";
@@ -82,7 +82,11 @@ async function uploadImageToServer(file: File): Promise<string> {
   try {
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`${SERVER_BASE}/upload`, { method: "POST", body: fd });
+    const res = await fetch(`${SERVER_BASE}/upload`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${publicAnonKey}` },
+      body: fd
+    });
     if (res.ok) return (await res.json()).url;
   } catch {}
   return URL.createObjectURL(file);
@@ -1923,7 +1927,9 @@ export default function App() {
 
   const loadSettings = async () => {
     try {
-      const res = await fetch(`${SERVER_BASE}/settings`);
+      const res = await fetch(`${SERVER_BASE}/settings`, {
+        headers: { "Authorization": `Bearer ${publicAnonKey}` }
+      });
       if (!res.ok) {
         // Fallback: load from localStorage if server function unavailable
         const local = localStorage.getItem("dapurdomba_settings");
@@ -1972,7 +1978,10 @@ export default function App() {
       for (const [k, v] of Object.entries(newCfg)) payload[k] = String(v);
       const res = await fetch(`${SERVER_BASE}/settings`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${publicAnonKey}`
+        },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
