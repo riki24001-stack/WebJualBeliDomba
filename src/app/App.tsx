@@ -705,6 +705,7 @@ function PageLogin({ setPage, onLoginDemo, waAdmin }: { setPage: (p: Page) => vo
     setLoading(true);
     setError("");
     
+    // Gunakan try-catch minimal untuk membungkus signIn
     try {
       const { data, error: err } = await supabase.auth.signInWithPassword({
         email: hpToEmail(hp),
@@ -717,17 +718,17 @@ function PageLogin({ setPage, onLoginDemo, waAdmin }: { setPage: (p: Page) => vo
         return;
       }
 
+      // Jangan await loadProfile di sini untuk mencegah login macet jika database profil bermasalah
+      // loadProfile akan dijalankan secara otomatis oleh useEffect (onAuthStateChange)
       if (data?.user) {
-        // Tunggu sebentar untuk memastikan auth state stabil
-        await loadProfile(data.user.id, data.user.email || "", data.user.user_metadata);
+        loadProfile(data.user.id, data.user.email || "", data.user.user_metadata).catch(console.error);
       }
       
       setLoading(false);
       setPage("beranda");
-    } catch (e) {
+    } catch (e: any) {
       setLoading(false);
-      setError("Terjadi kendala saat masuk. Coba lagi.");
-      console.error(e);
+      setError("Gagal masuk: " + (e.message || "Kesalahan jaringan"));
     }
   };
 
@@ -1928,6 +1929,7 @@ export default function App() {
   };
 
   const loadProfile = async (uid: string, email: string, meta?: any) => {
+    // Pastikan tidak melempar error keluar agar tidak merusak flow utama
     try {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).single();
       
@@ -1936,31 +1938,37 @@ export default function App() {
       const metaHp = meta?.no_hp || noHpFromEmail;
 
       if (data) {
+        // Data ditemukan, set role dan profil
         setRole((data.role || "user") as Role);
         setUserProfile({
           nama: data.nama_lengkap || metaNama,
           email,
           hp: data.no_hp || metaHp,
         });
+      } else if (error && (error.code === "PGRST116" || error.message?.includes("rows"))) {
+        // Profil belum ada, buat baru dengan role user
+        const hp = noHpFromEmail;
+        await supabase.from("profiles").upsert({
+          id: uid,
+          nama_lengkap: metaNama,
+          no_hp: hp,
+          role: "user",
+        }, { onConflict: "id" });
+        setRole("user");
+        setUserProfile({ nama: metaNama, email, hp });
       } else {
-        // Jika tidak ada data, buat baru (hanya jika benar-benar tidak ada)
-        if (error && (error.code === "PGRST116" || error.message?.includes("rows"))) {
-          const hp = noHpFromEmail;
-          await supabase.from("profiles").upsert({
-            id: uid,
-            nama_lengkap: metaNama,
-            no_hp: hp,
-            role: "user",
-          }, { onConflict: "id" });
-          setRole("user");
-          setUserProfile({ nama: metaNama, email, hp });
-        } else {
-          // Error lain, set data minimal agar tidak blank
-          setUserProfile({ nama: metaNama, email, hp: metaHp });
-        }
+        // Ada error database lain, jangan biarkan blank
+        setUserProfile({ nama: metaNama, email, hp: metaHp });
       }
     } catch (e) {
-      console.error("loadProfile error:", e);
+      console.error("[loadProfile] Critical error:", e);
+      // Fallback profil minimal dari metadata auth
+      const noHpFromEmail = email.replace("@dapurdomba.local", "");
+      setUserProfile({
+        nama: meta?.nama_lengkap || meta?.full_name || "User",
+        email,
+        hp: meta?.no_hp || noHpFromEmail,
+      });
     }
   };
 
