@@ -704,29 +704,26 @@ function PageLogin({ setPage, onLoginDemo, waAdmin }: { setPage: (p: Page) => vo
     if (!hp || !pass) return;
     setLoading(true);
     setError("");
-    try {
-      const { data, error: err } = await supabase.auth.signInWithPassword({
-        email: hpToEmail(hp),
-        password: pass,
-      });
-      
-      if (err) {
-        setLoading(false);
-        setError("No. HP atau password salah. Coba lagi.");
-        return;
-      }
-
-      // Pastikan session sudah ter-set dan profil dimuat sebelum pindah halaman
-      if (data?.session?.user) {
-        await loadProfile(data.session.user.id, data.session.user.email || "", data.session.user.user_metadata);
-      }
-      
+    
+    const { data, error: err } = await supabase.auth.signInWithPassword({
+      email: hpToEmail(hp),
+      password: pass,
+    });
+    
+    if (err) {
       setLoading(false);
-      setPage("beranda");
-    } catch (e) {
-      setLoading(false);
-      setError("Terjadi kesalahan sistem. Silakan coba lagi.");
+      setError("No. HP atau password salah. Coba lagi.");
+      return;
     }
+
+    // Pemuatan profil dilakukan secara paralel, navigasi langsung saja
+    // useEffect onAuthStateChange akan menangani pemuatan profil jika loadProfile di sini gagal
+    if (data?.user) {
+      loadProfile(data.user.id, data.user.email || "", data.user.user_metadata).catch(console.error);
+    }
+    
+    setLoading(false);
+    setPage("beranda");
   };
 
   return (
