@@ -958,14 +958,23 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
 // ── PAGE: Cicilan ─────────────────────────────────────────────────────
 function PageCicilan({ cfg }: { cfg: SiteConfig }) {
   const [hasCicilan, setHasCicilan] = useState(false);
+  const [cicilanData, setCicilanData] = useState<{ cicilan_ke: number; total_cicilan: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkCicilan = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
-      const { data } = await supabase.from("paket_cicilan").select("id").eq("user_id", user.id).eq("status", "aktif").limit(1);
-      setHasCicilan(!!data && data.length > 0);
+      const { data } = await supabase.from("paket_cicilan")
+        .select("id, cicilan_ke, total_cicilan")
+        .eq("user_id", user.id)
+        .eq("status", "aktif")
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        setHasCicilan(true);
+        setCicilanData(data[0]);
+      }
       setLoading(false);
     };
     checkCicilan();
@@ -980,41 +989,71 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
         <h1 className="font-display text-2xl font-bold">Cicilan Saya</h1>
       </div>
 
-      {/* Info rekening - Hanya muncul jika ada cicilan aktif */}
       {hasCicilan && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-            <CreditCard className="w-3.5 h-3.5" /> Bayar Cicilan ke Rekening Ini
-          </p>
-          <div className="bg-white rounded-xl border border-amber-100 divide-y divide-amber-100">
-            {[
-              { label: "Bank", value: cfg.namaBank },
-              { label: "No. Rekening", value: cfg.norek, mono: true },
-              { label: "Atas Nama", value: cfg.namaRekening },
-            ].map(r => (
-              <div key={r.label} className="flex items-center justify-between px-3 py-2.5">
-                <span className="text-xs text-muted-foreground">{r.label}</span>
-                <span className={`text-sm ${r.mono ? "font-mono tracking-wider" : "font-semibold"}`}>{r.value || "—"}</span>
+        <div className="space-y-4">
+          {/* Progres Cicilan */}
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <Clock className="w-4 h-4 text-primary" /> Progres Pembayaran
+              </h3>
+              <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded-lg">
+                Bulan {cicilanData?.cicilan_ke} / {cicilanData?.total_cicilan}
+              </span>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+                <div 
+                  className="bg-primary h-full transition-all duration-500" 
+                  style={{ width: `${Math.min(100, ((cicilanData?.cicilan_ke || 0) / (cicilanData?.total_cicilan || 1)) * 100)}%` }} 
+                />
               </div>
-            ))}
+              <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <span>Mulai</span>
+                <span>{cicilanData?.total_cicilan ? cicilanData.total_cicilan - cicilanData.cicilan_ke : 0} Bulan Tersisa</span>
+                <span>Selesai</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Info rekening */}
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5" /> Bayar Cicilan ke Rekening Ini
+            </p>
+            <div className="bg-white rounded-xl border border-amber-100 divide-y divide-amber-100">
+              {[
+                { label: "Bank", value: cfg.namaBank },
+                { label: "No. Rekening", value: cfg.norek, mono: true },
+                { label: "Atas Nama", value: cfg.namaRekening },
+              ].map(r => (
+                <div key={r.label} className="flex items-center justify-between px-3 py-2.5">
+                  <span className="text-xs text-muted-foreground">{r.label}</span>
+                  <span className={`text-sm ${r.mono ? "font-mono tracking-wider" : "font-semibold"}`}>{r.value || "—"}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-amber-700 mt-3 text-center italic">
+              *Setelah transfer, silakan konfirmasi ke admin via WhatsApp
+            </p>
           </div>
         </div>
       )}
 
-      {/* Empty state - Muncul jika tidak ada cicilan */}
       {!hasCicilan && (
         <div className="text-center py-14 bg-card border border-border rounded-2xl">
-        <CreditCard className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-        <p className="font-semibold mb-1">Belum ada cicilan aktif</p>
-        <p className="text-sm text-muted-foreground mb-4">Hubungi admin untuk mendaftarkan paket cicilan domba.</p>
-        <a
-          href={`https://wa.me/${cfg.whatsapp}?text=Halo%20admin%2C%20saya%20ingin%20mendaftar%20paket%20cicilan%20domba.`}
-          target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
-        >
-          <Phone className="w-4 h-4" /> Hubungi Admin via WhatsApp
-        </a>
-      </div>
+          <CreditCard className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+          <p className="font-semibold mb-1">Belum ada cicilan aktif</p>
+          <p className="text-sm text-muted-foreground mb-4">Hubungi admin untuk mendaftarkan paket cicilan domba.</p>
+          <a
+            href={`https://wa.me/${cfg.whatsapp}?text=Halo%20admin%2C%20saya%20ingin%20mendaftar%20paket%20cicilan%20domba.`}
+            target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <Phone className="w-4 h-4" /> Hubungi Admin via WhatsApp
+          </a>
+        </div>
       )}
     </div>
   );
@@ -1241,17 +1280,17 @@ function PageAdmin({
 // ── Tab Cicilan (Admin) ────────────────────────────────────────────────
 function TabCicilan({ cfg }: { cfg: SiteConfig }) {
   const [users, setUsers] = useState<{ id: string; nama_lengkap: string; no_hp: string }[]>([]);
-  const [cicilanMap, setCicilanMap] = useState<Record<string, { id: string; status: string }>>({});
+  const [cicilanMap, setCicilanMap] = useState<Record<string, { id: string; status: string; cicilan_ke: number; total_cicilan: number }>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
     const { data: profil } = await supabase.from("profiles").select("id, nama_lengkap, no_hp").eq("role", "user").order("created_at", { ascending: false });
-    const { data: cicilan } = await supabase.from("paket_cicilan").select("id, user_id, status").eq("status", "aktif");
+    const { data: cicilan } = await supabase.from("paket_cicilan").select("id, user_id, status, cicilan_ke, total_cicilan").eq("status", "aktif");
     setUsers(profil || []);
-    const map: Record<string, { id: string; status: string }> = {};
-    (cicilan || []).forEach(c => { map[c.user_id] = { id: c.id, status: c.status }; });
+    const map: Record<string, { id: string; status: string; cicilan_ke: number; total_cicilan: number }> = {};
+    (cicilan || []).forEach(c => { map[c.user_id] = { id: c.id, status: c.status, cicilan_ke: c.cicilan_ke, total_cicilan: c.total_cicilan }; });
     setCicilanMap(map);
     setLoading(false);
   };
@@ -1260,13 +1299,24 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
 
   const handleActivate = async (userId: string) => {
     setSaving(userId);
-    await supabase.from("paket_cicilan").insert({
+    const { error } = await supabase.from("paket_cicilan").insert({
       user_id: userId,
       status: "aktif",
       cicilan_ke: 1,
       total_cicilan: parseInt(cfg.cicilanMaksimal) || 3,
       nominal: 0,
     });
+    if (error) console.error("Error activating:", error);
+    await load();
+    setSaving(null);
+  };
+
+  const handleUpdateProgress = async (cicilanId: string, current: number, total: number) => {
+    setSaving(cicilanId);
+    await supabase.from("paket_cicilan").update({ 
+      cicilan_ke: current,
+      total_cicilan: total 
+    }).eq("id", cicilanId);
     await load();
     setSaving(null);
   };
@@ -1283,7 +1333,7 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
   return (
     <div>
       <h2 className="font-semibold mb-1">Kelola Cicilan</h2>
-      <p className="text-xs text-muted-foreground mb-3">Aktifkan cicilan untuk pengguna agar info rekening pembayaran muncul di halaman "Cicilan Saya" mereka.</p>
+      <p className="text-xs text-muted-foreground mb-3">Aktifkan cicilan dan atur durasi cicilan untuk pengguna.</p>
       {users.length === 0 ? (
         <div className="text-center py-14 bg-card border border-border rounded-2xl text-muted-foreground">
           <CreditCard className="w-8 h-8 mx-auto mb-2" />
@@ -1294,27 +1344,71 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
           {users.map(u => {
             const active = cicilanMap[u.id];
             return (
-              <div key={u.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-primary" />
+              <div key={u.id} className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                    <User className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-sm block">{u.nama_lengkap || "—"}</span>
+                    <span className="text-xs text-muted-foreground">{u.no_hp}</span>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                    {active ? "Cicilan Aktif" : "Belum Aktif"}
+                  </span>
+                  {!active && (
+                    <button onClick={() => handleActivate(u.id)} disabled={saving === u.id}
+                      className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60 flex-shrink-0">
+                      {saving === u.id ? "..." : "Aktifkan"}
+                    </button>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <span className="font-semibold text-sm block">{u.nama_lengkap || "—"}</span>
-                  <span className="text-xs text-muted-foreground">{u.no_hp}</span>
-                </div>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                  {active ? "Cicilan Aktif" : "Belum Aktif"}
-                </span>
-                {active ? (
-                  <button onClick={() => handleDeactivate(active.id)} disabled={saving === active.id}
-                    className="px-3 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60 flex-shrink-0">
-                    {saving === active.id ? "..." : "Nonaktifkan"}
-                  </button>
-                ) : (
-                  <button onClick={() => handleActivate(u.id)} disabled={saving === u.id}
-                    className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60 flex-shrink-0">
-                    {saving === u.id ? "..." : "Aktifkan"}
-                  </button>
+
+                {active && (
+                  <div className="bg-muted/50 rounded-xl p-3 border border-border flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold">Progres Cicilan</span>
+                      <button onClick={() => handleDeactivate(active.id)} disabled={saving === active.id}
+                        className="text-xs font-bold text-red-600 hover:text-red-700 disabled:opacity-50">
+                        {saving === active.id ? "..." : "Selesaikan/Lunas"}
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Cicilan Ke-</label>
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="number" 
+                            className="w-full bg-background border border-border rounded-lg px-2 py-1 text-sm"
+                            value={active.cicilan_ke}
+                            onChange={(e) => handleUpdateProgress(active.id, parseInt(e.target.value) || 0, active.total_cicilan)}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Total Bulan</label>
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="number" 
+                            className="w-full bg-background border border-border rounded-lg px-2 py-1 text-sm"
+                            value={active.total_cicilan}
+                            onChange={(e) => handleUpdateProgress(active.id, active.cicilan_ke, parseInt(e.target.value) || 0)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full bg-background rounded-full h-1.5 overflow-hidden border border-border">
+                      <div 
+                        className="bg-primary h-full transition-all" 
+                        style={{ width: `${Math.min(100, (active.cicilan_ke / active.total_cicilan) * 100)}%` }} 
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground text-center">
+                      {active.cicilan_ke} dari {active.total_cicilan} bulan terbayar
+                    </p>
+                  </div>
                 )}
               </div>
             );
