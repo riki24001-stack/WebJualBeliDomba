@@ -1913,31 +1913,44 @@ export default function App() {
   };
 
   const loadProfile = async (uid: string, email: string, meta?: any) => {
+    // Ambil profile dari database
     const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).single();
-    if (error) console.error("[loadProfile] error:", error.message, error.code);
-
+    
     const noHpFromEmail = email.replace("@dapurdomba.local", "");
     const metaNama = meta?.nama_lengkap || meta?.full_name || "";
     const metaHp = meta?.no_hp || noHpFromEmail;
 
     if (data) {
+      // Profile ditemukan, gunakan role dari database
+      console.log("[loadProfile] Profile found:", data);
       setRole((data.role || "user") as Role);
       setUserProfile({
         nama: data.nama_lengkap || metaNama,
         email,
         hp: data.no_hp || metaHp,
       });
-    } else {
-      // Tidak ada profile di DB, coba buat otomatis
+    } else if (error && (error.code === "PGRST116" || error.message?.includes("rows"))) {
+      // Profile tidak ditemukan (PGRST116 = no rows returned), buat baru
+      console.log("[loadProfile] Profile not found, creating new one for UID:", uid);
       const hp = noHpFromEmail;
-      await supabase.from("profiles").upsert({
+      const { error: insertError } = await supabase.from("profiles").insert({
         id: uid,
         nama_lengkap: metaNama,
         no_hp: hp,
-        role: "user",
-      }, { onConflict: "id" });
-      setRole("user");
-      setUserProfile({ nama: metaNama, email, hp });
+        role: "user", // Default untuk user baru
+      });
+      
+      if (insertError) {
+        console.error("[loadProfile] Failed to create profile:", insertError);
+      } else {
+        setRole("user");
+        setUserProfile({ nama: metaNama, email, hp });
+      }
+    } else if (error) {
+      // Error lain (misal: RLS, jaringan), jangan overwrite role ke 'user'
+      console.error("[loadProfile] Error fetching profile:", error.message, error.code);
+      // Tetap set profile dasar dari metadata agar tidak kosong
+      setUserProfile({ nama: metaNama, email, hp: metaHp });
     }
   };
 
