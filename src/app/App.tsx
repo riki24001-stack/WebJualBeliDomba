@@ -794,7 +794,7 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
     setError("");
     try {
       const fakeEmail = hpToEmail(form.hp);
-      const { error: err } = await supabase.auth.signUp({
+      const { data, error: err } = await supabase.auth.signUp({
         email: fakeEmail,
         password: form.pass,
         options: {
@@ -802,15 +802,25 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
           emailRedirectTo: undefined,
         }
       });
-      setLoading(false);
       if (err) {
-        if (err.message?.includes("already registered") || err.message?.includes("already exists")) {
+        setLoading(false);
+        if (err.message?.includes("already registered") || err.message?.includes("already exists") || err.message?.includes("User already registered")) {
           setError("No. HP ini sudah terdaftar. Silakan masuk.");
         } else {
-          setError("Gagal membuat akun. Coba lagi atau hubungi admin.");
+          setError(`Gagal: ${err.message}`);
         }
         return;
       }
+      // Buat profile manual jika trigger DB belum ada / gagal
+      if (data?.user) {
+        await supabase.from("profiles").upsert({
+          id: data.user.id,
+          nama_lengkap: form.nama,
+          no_hp: form.hp,
+          role: "user",
+        }, { onConflict: "id" });
+      }
+      setLoading(false);
       setDone(true);
     } catch (e: any) {
       setLoading(false);
