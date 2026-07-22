@@ -52,20 +52,9 @@ interface ProdukLain {
 }
 
 // ── Default Data ──────────────────────────────────────────────────────
-const DEFAULT_PRODUK_LAIN: ProdukLain[] = [
-  { id: "p1", nama: "Hampas Tahu", kategori: "Pakan", harga: 15000, satuan: "karung", stok: 120, foto: "https://images.unsplash.com/photo-1464226184884-fa280b87c399?w=400&h=300&fit=crop&auto=format" },
-  { id: "p2", nama: "Pupuk Kandang (Kohe)", kategori: "Pupuk", harga: 25000, satuan: "karung", stok: 80, foto: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=300&fit=crop&auto=format" },
-  { id: "p3", nama: "Jerami Fermentasi", kategori: "Pakan", harga: 20000, satuan: "karung", stok: 0, foto: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=400&h=300&fit=crop&auto=format" },
-];
+const DEFAULT_PRODUK_LAIN: ProdukLain[] = [];
 
-const DEFAULT_SHEEP_DATA: Sheep[] = [
-  { id: "1", kode: "DMB-001", nama: "Gareng", harga: 4500000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 18, beratKg: 42, tinggiCm: 68, foto: ["https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=800&h=600&fit=crop&auto=format", "https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan sehat, bertubuh besar dan gemuk. Cocok untuk qurban Idul Adha. Sudah divaksin lengkap." },
-  { id: "2", kode: "DMB-002", nama: "Petruk", harga: 5200000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 24, beratKg: 56, tinggiCm: 74, foto: ["https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan premium, bulu tebal dan bersih. Sangat aktif dan sehat." },
-  { id: "3", kode: "DMB-003", nama: "Semar", harga: 3800000, status: "dipesan", jenisKelamin: "betina", umurBulan: 15, beratKg: 35, tinggiCm: 62, foto: ["https://images.unsplash.com/photo-1555169062-013468b47731?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba betina muda, sehat dan lincah. Ideal untuk pembibitan atau qurban." },
-  { id: "4", kode: "DMB-004", nama: "Bagong", harga: 6100000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 30, beratKg: 68, tinggiCm: 80, foto: ["https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan super — ukuran besar, otot kuat, bulu lebat." },
-  { id: "5", kode: "DMB-005", nama: "Srikandi", harga: 4100000, status: "terjual", jenisKelamin: "betina", umurBulan: 20, beratKg: 38, tinggiCm: 65, foto: ["https://images.unsplash.com/photo-1516467508483-a7212febe31a?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba betina dewasa dengan postur bagus." },
-  { id: "6", kode: "DMB-006", nama: "Arjuna", harga: 4800000, status: "tersedia", jenisKelamin: "jantan", umurBulan: 22, beratKg: 50, tinggiCm: 71, foto: ["https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=800&h=600&fit=crop&auto=format"], deskripsi: "Domba jantan dengan proporsi tubuh ideal. Bulu bersih, gigi lengkap." },
-];
+const DEFAULT_SHEEP_DATA: Sheep[] = [];
 
 const DEFAULT_CFG: SiteConfig = {
   heroImage: "https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=1600&h=900&fit=crop&auto=format",
@@ -295,20 +284,30 @@ function PageBeranda({ setPage, setSelectedId, role, cfg, produkLain, sheepData 
             Lihat semua <ChevronRight className="w-4 h-4" />
           </button>
         </div>
-        {/* Mobile: horizontal scroll */}
-        <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory no-scrollbar sm:hidden">
-          {featured.map(s => (
-            <div key={s.id} className="flex-none w-44 snap-start">
-              <SheepCardCompact sheep={s} onClick={() => { setSelectedId(s.id); setPage("detail"); }} />
+        {featured.length === 0 ? (
+          <div className="text-center py-10 bg-card border border-border rounded-2xl text-muted-foreground">
+            <div className="text-4xl mb-2">🐑</div>
+            <p className="font-semibold text-sm">Belum ada domba tersedia</p>
+            <p className="text-xs mt-1">Admin dapat menambahkan domba melalui panel admin.</p>
+          </div>
+        ) : (
+          <>
+            {/* Mobile: horizontal scroll */}
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory no-scrollbar sm:hidden">
+              {featured.map(s => (
+                <div key={s.id} className="flex-none w-44 snap-start">
+                  <SheepCardCompact sheep={s} onClick={() => { setSelectedId(s.id); setPage("detail"); }} />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        {/* Desktop: grid */}
-        <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {featured.map(s => (
-            <SheepCard key={s.id} sheep={s} onClick={() => { setSelectedId(s.id); setPage("detail"); }} />
-          ))}
-        </div>
+            {/* Desktop: grid */}
+            <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {featured.map(s => (
+                <SheepCard key={s.id} sheep={s} onClick={() => { setSelectedId(s.id); setPage("detail"); }} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Cicilan banner */}
@@ -505,8 +504,8 @@ function PageKatalog({ setPage, setSelectedId, sheepData }: { setPage: (p: Page)
       {filtered.length === 0 && (
         <div className="text-center py-16 text-muted-foreground">
           <div className="text-4xl mb-3">🐑</div>
-          <p className="font-semibold mb-1">Tidak ditemukan</p>
-          <p className="text-sm">Coba ubah filter atau kata kunci.</p>
+          <p className="font-semibold mb-1">{sheepData.length === 0 ? "Belum ada domba" : "Tidak ditemukan"}</p>
+          <p className="text-sm">{sheepData.length === 0 ? "Admin belum menambahkan domba ke katalog." : "Coba ubah filter atau kata kunci."}</p>
         </div>
       )}
     </div>
