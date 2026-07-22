@@ -1652,6 +1652,7 @@ CREATE TRIGGER on_auth_user_created
 function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg: (c: SiteConfig) => void; adminProfile: { nama: string; email: string; hp: string } }) {
   const safeProfile = { nama: adminProfile?.nama ?? "", email: adminProfile?.email ?? "", hp: adminProfile?.hp ?? "" };
   const [local, setLocal] = useState<SiteConfig>({ ...cfg });
+  useEffect(() => { setLocal({ ...cfg }); }, [cfg]);
   const [savedSite, setSavedSite] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"" | "server" | "local">("");
   const [showMigration, setShowMigration] = useState(false);
