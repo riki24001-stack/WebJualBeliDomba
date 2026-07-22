@@ -693,7 +693,12 @@ function PageDetail({ id, setPage, role, wa, sheepData, cfg }: { id: string; set
 const hpToEmail = (hp: string) => `${hp.replace(/\D/g, "")}@dapurdomba.local`;
 
 // ── PAGE: Login ───────────────────────────────────────────────────────
-function PageLogin({ setPage, onLoginDemo, waAdmin }: { setPage: (p: Page) => void; onLoginDemo: (r: Role) => void; waAdmin?: string }) {
+function PageLogin({ setPage, onLoginDemo, waAdmin, onLoadProfile }: { 
+  setPage: (p: Page) => void; 
+  onLoginDemo: (r: Role) => void; 
+  waAdmin?: string;
+  onLoadProfile?: (uid: string, email: string, meta?: any) => Promise<void>;
+}) {
   const [hp, setHp] = useState("");
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
@@ -705,7 +710,6 @@ function PageLogin({ setPage, onLoginDemo, waAdmin }: { setPage: (p: Page) => vo
     setLoading(true);
     setError("");
     
-    // Gunakan try-catch minimal untuk membungkus signIn
     try {
       const { data, error: err } = await supabase.auth.signInWithPassword({
         email: hpToEmail(hp),
@@ -718,10 +722,9 @@ function PageLogin({ setPage, onLoginDemo, waAdmin }: { setPage: (p: Page) => vo
         return;
       }
 
-      // Jangan await loadProfile di sini untuk mencegah login macet jika database profil bermasalah
-      // loadProfile akan dijalankan secara otomatis oleh useEffect (onAuthStateChange)
-      if (data?.user) {
-        loadProfile(data.user.id, data.user.email || "", data.user.user_metadata).catch(console.error);
+      // Panggil loadProfile jika dilewatkan sebagai prop, jika tidak useEffect di App akan menangani
+      if (data?.user && onLoadProfile) {
+        onLoadProfile(data.user.id, data.user.email || "", data.user.user_metadata).catch(console.error);
       }
       
       setLoading(false);
@@ -2125,7 +2128,7 @@ export default function App() {
         {page === "beranda" && <PageBeranda setPage={setPage} setSelectedId={setSelectedId} role={role} cfg={cfg} produkLain={produkLain} sheepData={sheepData} />}
         {page === "katalog" && <PageKatalog setPage={setPage} setSelectedId={setSelectedId} sheepData={sheepData} />}
         {page === "detail" && <PageDetail id={selectedId} setPage={setPage} role={role} wa={cfg.whatsapp} sheepData={sheepData} cfg={cfg} />}
-        {page === "login" && <PageLogin setPage={setPage} onLoginDemo={handleLoginDemo} waAdmin={cfg.whatsapp} />}
+        {page === "login" && <PageLogin setPage={setPage} onLoginDemo={handleLoginDemo} waAdmin={cfg.whatsapp} onLoadProfile={loadProfile} />}
         {page === "signup" && <PageSignup setPage={setPage} />}
         {page === "cicilan" && role !== "guest" && <PageCicilan cfg={cfg} />}
         {page === "admin" && role === "admin" && (
