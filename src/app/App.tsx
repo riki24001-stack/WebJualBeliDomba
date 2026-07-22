@@ -705,25 +705,30 @@ function PageLogin({ setPage, onLoginDemo, waAdmin }: { setPage: (p: Page) => vo
     setLoading(true);
     setError("");
     
-    const { data, error: err } = await supabase.auth.signInWithPassword({
-      email: hpToEmail(hp),
-      password: pass,
-    });
-    
-    if (err) {
-      setLoading(false);
-      setError("No. HP atau password salah. Coba lagi.");
-      return;
-    }
+    try {
+      const { data, error: err } = await supabase.auth.signInWithPassword({
+        email: hpToEmail(hp),
+        password: pass,
+      });
+      
+      if (err) {
+        setLoading(false);
+        setError("No. HP atau password salah. Coba lagi.");
+        return;
+      }
 
-    // Pemuatan profil dilakukan secara paralel, navigasi langsung saja
-    // useEffect onAuthStateChange akan menangani pemuatan profil jika loadProfile di sini gagal
-    if (data?.user) {
-      loadProfile(data.user.id, data.user.email || "", data.user.user_metadata).catch(console.error);
+      if (data?.user) {
+        // Tunggu sebentar untuk memastikan auth state stabil
+        await loadProfile(data.user.id, data.user.email || "", data.user.user_metadata);
+      }
+      
+      setLoading(false);
+      setPage("beranda");
+    } catch (e) {
+      setLoading(false);
+      setError("Terjadi kendala saat masuk. Coba lagi.");
+      console.error(e);
     }
-    
-    setLoading(false);
-    setPage("beranda");
   };
 
   return (
@@ -1923,44 +1928,39 @@ export default function App() {
   };
 
   const loadProfile = async (uid: string, email: string, meta?: any) => {
-    // Ambil profile dari database
-    const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).single();
-    
-    const noHpFromEmail = email.replace("@dapurdomba.local", "");
-    const metaNama = meta?.nama_lengkap || meta?.full_name || "";
-    const metaHp = meta?.no_hp || noHpFromEmail;
-
-    if (data) {
-      // Profile ditemukan, gunakan role dari database
-      console.log("[loadProfile] Profile found:", data);
-      setRole((data.role || "user") as Role);
-      setUserProfile({
-        nama: data.nama_lengkap || metaNama,
-        email,
-        hp: data.no_hp || metaHp,
-      });
-    } else if (error && (error.code === "PGRST116" || error.message?.includes("rows"))) {
-      // Profile tidak ditemukan (PGRST116 = no rows returned), buat baru
-      console.log("[loadProfile] Profile not found, creating new one for UID:", uid);
-      const hp = noHpFromEmail;
-      const { error: insertError } = await supabase.from("profiles").insert({
-        id: uid,
-        nama_lengkap: metaNama,
-        no_hp: hp,
-        role: "user", // Default untuk user baru
-      });
+    try {
+      const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).single();
       
-      if (insertError) {
-        console.error("[loadProfile] Failed to create profile:", insertError);
+      const noHpFromEmail = email.replace("@dapurdomba.local", "");
+      const metaNama = meta?.nama_lengkap || meta?.full_name || "";
+      const metaHp = meta?.no_hp || noHpFromEmail;
+
+      if (data) {
+        setRole((data.role || "user") as Role);
+        setUserProfile({
+          nama: data.nama_lengkap || metaNama,
+          email,
+          hp: data.no_hp || metaHp,
+        });
       } else {
-        setRole("user");
-        setUserProfile({ nama: metaNama, email, hp });
+        // Jika tidak ada data, buat baru (hanya jika benar-benar tidak ada)
+        if (error && (error.code === "PGRST116" || error.message?.includes("rows"))) {
+          const hp = noHpFromEmail;
+          await supabase.from("profiles").upsert({
+            id: uid,
+            nama_lengkap: metaNama,
+            no_hp: hp,
+            role: "user",
+          }, { onConflict: "id" });
+          setRole("user");
+          setUserProfile({ nama: metaNama, email, hp });
+        } else {
+          // Error lain, set data minimal agar tidak blank
+          setUserProfile({ nama: metaNama, email, hp: metaHp });
+        }
       }
-    } else if (error) {
-      // Error lain (misal: RLS, jaringan), jangan overwrite role ke 'user'
-      console.error("[loadProfile] Error fetching profile:", error.message, error.code);
-      // Tetap set profile dasar dari metadata agar tidak kosong
-      setUserProfile({ nama: metaNama, email, hp: metaHp });
+    } catch (e) {
+      console.error("loadProfile error:", e);
     }
   };
 
