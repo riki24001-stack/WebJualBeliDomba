@@ -1930,30 +1930,31 @@ export default function App() {
 
   const loadProfile = async (uid: string, email: string, meta?: any) => {
     try {
-      // Ambil data profil dari tabel 'profiles'
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).single();
+      // Tambahkan header untuk menghindari cache dan pastikan data terbaru diambil
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", uid)
+        .single();
       
       const noHpFromEmail = email.replace("@dapurdomba.local", "");
       const metaNama = meta?.nama_lengkap || meta?.full_name || "";
       const metaHp = meta?.no_hp || noHpFromEmail;
 
       if (data) {
-        // JIKA PROFIL DITEMUKAN: Gunakan role dari database (admin/user)
-        // Ini memastikan status admin Anda tetap terjaga.
-        console.log("[loadProfile] Role found:", data.role);
-        setRole((data.role || "user") as Role);
+        // PAKSA update role ke state agar UI langsung berubah
+        console.log("[loadProfile] Data found, role:", data.role);
+        const currentRole = (data.role || "user") as Role;
+        setRole(currentRole);
         setUserProfile({
           nama: data.nama_lengkap || metaNama,
           email,
           hp: data.no_hp || metaHp,
         });
       } else {
-        // JIKA PROFIL TIDAK DITEMUKAN:
-        // Kita hanya akan membuat profil baru jika error-nya adalah 'PGRST116' (no rows)
         if (error && error.code === "PGRST116") {
-          console.log("[loadProfile] Creating new profile for:", uid);
+          console.log("[loadProfile] Profile not found, creating new...");
           const hp = noHpFromEmail;
-          // Gunakan INSERT bukan UPSERT untuk keamanan role
           await supabase.from("profiles").insert({
             id: uid,
             nama_lengkap: metaNama,
@@ -1963,14 +1964,12 @@ export default function App() {
           setRole("user");
           setUserProfile({ nama: metaNama, email, hp });
         } else {
-          // Jika ada error lain (RLS/Jaringan), jangan paksa jadi 'user'
-          // Biarkan state role tetap atau gunakan fallback dari metadata
-          console.warn("[loadProfile] Profile fetch failed, using fallback meta");
+          console.warn("[loadProfile] Database error or RLS issue:", error);
           setUserProfile({ nama: metaNama, email, hp: metaHp });
         }
       }
     } catch (e) {
-      console.error("[loadProfile] Error:", e);
+      console.error("[loadProfile] Exception:", e);
     }
   };
 
