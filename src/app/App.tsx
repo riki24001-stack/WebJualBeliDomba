@@ -722,11 +722,8 @@ function PageLogin({ setPage, onLoginDemo, waAdmin, onLoadProfile }: {
         return;
       }
 
-      // Panggil loadProfile jika dilewatkan sebagai prop, jika tidak useEffect di App akan menangani
-      if (data?.user && onLoadProfile) {
-        onLoadProfile(data.user.id, data.user.email || "", data.user.user_metadata).catch(console.error);
-      }
-      
+      // Jika login sukses, langsung pindah halaman. 
+      // State authUser & role akan diupdate oleh listener onAuthStateChange di App.tsx
       setLoading(false);
       setPage("beranda");
     } catch (e: any) {
@@ -1987,8 +1984,12 @@ export default function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      console.log("[AuthChange] Event:", _e, "Session:", !!session);
       if (session) {
         setAuthUser(session.user);
+        // Langsung set role 'user' sebagai fallback agar UI tidak stuck di 'guest'
+        // Nanti loadProfile akan mengupdate ke 'admin' jika memang admin
+        setRole(prev => (prev === "guest" ? "user" : prev));
         loadProfile(session.user.id, session.user.email || "", session.user.user_metadata);
       } else {
         setAuthUser(null);
