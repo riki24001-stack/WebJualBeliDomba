@@ -133,12 +133,15 @@ function StatusBadge({ status }: { status: Sheep["status"] }) {
 }
 
 // ── Foto Upload ───────────────────────────────────────────────────────
-function FotoUpload({ value, onChange, label = "Foto", aspect = "aspect-[16/9]" }: {
-  value: string; onChange: (url: string) => void; label?: string; aspect?: string;
+function FotoUpload({ value, onChange, label = "Foto", aspect = "aspect-[16/9]", onFileChange }: {
+  value: string; onChange: (url: string) => void; label?: string; aspect?: string; onFileChange?: (file: File) => void;
 }) {
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) onChange(URL.createObjectURL(file));
+    if (file) {
+      onChange(URL.createObjectURL(file));
+      if (onFileChange) onFileChange(file);
+    }
   };
   return (
     <div>
@@ -1648,6 +1651,7 @@ function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg:
   const [saveStatus, setSaveStatus] = useState<"" | "server" | "local">("");
   const [showMigration, setShowMigration] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [heroImageFile, setHeroImageFile] = useState<File | null>(null);
 
   const [profileForm, setProfileForm] = useState({ ...safeProfile });
   useEffect(() => { setProfileForm({ ...safeProfile }); }, [safeProfile.nama, safeProfile.email, safeProfile.hp]);
@@ -1658,10 +1662,28 @@ function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg:
   const [showPass, setShowPass] = useState({ lama: false, baru: false, konfirmasi: false });
 
   const handleSaveSite = async () => {
-    const result = await setCfg(local);
+    let configToSave = { ...local };
+    
+    // Upload hero image to server if a new file was selected
+    if (heroImageFile) {
+      try {
+        const imageUrl = await uploadImageToServer(heroImageFile);
+        configToSave = { ...configToSave, heroImage: imageUrl };
+        setHeroImageFile(null);
+      } catch (e) {
+        console.error("Failed to upload hero image:", e);
+        setSavedSite(true);
+        setSaveStatus("local");
+        setTimeout(() => { setSavedSite(false); setSaveStatus(""); }, 3500);
+        return;
+      }
+    }
+    
+    const result = await setCfg(configToSave);
     setSavedSite(true);
     if (result === "success") {
       setSaveStatus("server");
+      setLocal(configToSave);
     } else {
       setSaveStatus("local");
     }
@@ -1861,7 +1883,7 @@ function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg:
       <div className="bg-card border border-border rounded-2xl p-5">
         <h3 className="font-semibold mb-4 flex items-center gap-2"><Image className="w-4 h-4 text-muted-foreground" /> Foto Hero Beranda</h3>
         <div className="space-y-3">
-          <FotoUpload value={local.heroImage} onChange={url => setLocal(v => ({ ...v, heroImage: url }))} label="Foto Hero" aspect="aspect-[16/7]" />
+          <FotoUpload value={local.heroImage} onChange={url => setLocal(v => ({ ...v, heroImage: url }))} label="Foto Hero" aspect="aspect-[16/7]" onFileChange={setHeroImageFile} />
           <div>
             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Judul Hero</label>
             <input type="text" value={local.heroTitle} onChange={e => setLocal(v => ({ ...v, heroTitle: e.target.value }))}
