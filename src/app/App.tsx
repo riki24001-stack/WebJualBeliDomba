@@ -1929,8 +1929,8 @@ export default function App() {
   };
 
   const loadProfile = async (uid: string, email: string, meta?: any) => {
-    // Pastikan tidak melempar error keluar agar tidak merusak flow utama
     try {
+      // Ambil data profil dari tabel 'profiles'
       const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).single();
       
       const noHpFromEmail = email.replace("@dapurdomba.local", "");
@@ -1938,37 +1938,39 @@ export default function App() {
       const metaHp = meta?.no_hp || noHpFromEmail;
 
       if (data) {
-        // Data ditemukan, set role dan profil
+        // JIKA PROFIL DITEMUKAN: Gunakan role dari database (admin/user)
+        // Ini memastikan status admin Anda tetap terjaga.
+        console.log("[loadProfile] Role found:", data.role);
         setRole((data.role || "user") as Role);
         setUserProfile({
           nama: data.nama_lengkap || metaNama,
           email,
           hp: data.no_hp || metaHp,
         });
-      } else if (error && (error.code === "PGRST116" || error.message?.includes("rows"))) {
-        // Profil belum ada, buat baru dengan role user
-        const hp = noHpFromEmail;
-        await supabase.from("profiles").upsert({
-          id: uid,
-          nama_lengkap: metaNama,
-          no_hp: hp,
-          role: "user",
-        }, { onConflict: "id" });
-        setRole("user");
-        setUserProfile({ nama: metaNama, email, hp });
       } else {
-        // Ada error database lain, jangan biarkan blank
-        setUserProfile({ nama: metaNama, email, hp: metaHp });
+        // JIKA PROFIL TIDAK DITEMUKAN:
+        // Kita hanya akan membuat profil baru jika error-nya adalah 'PGRST116' (no rows)
+        if (error && error.code === "PGRST116") {
+          console.log("[loadProfile] Creating new profile for:", uid);
+          const hp = noHpFromEmail;
+          // Gunakan INSERT bukan UPSERT untuk keamanan role
+          await supabase.from("profiles").insert({
+            id: uid,
+            nama_lengkap: metaNama,
+            no_hp: hp,
+            role: "user",
+          });
+          setRole("user");
+          setUserProfile({ nama: metaNama, email, hp });
+        } else {
+          // Jika ada error lain (RLS/Jaringan), jangan paksa jadi 'user'
+          // Biarkan state role tetap atau gunakan fallback dari metadata
+          console.warn("[loadProfile] Profile fetch failed, using fallback meta");
+          setUserProfile({ nama: metaNama, email, hp: metaHp });
+        }
       }
     } catch (e) {
-      console.error("[loadProfile] Critical error:", e);
-      // Fallback profil minimal dari metadata auth
-      const noHpFromEmail = email.replace("@dapurdomba.local", "");
-      setUserProfile({
-        nama: meta?.nama_lengkap || meta?.full_name || "User",
-        email,
-        hp: meta?.no_hp || noHpFromEmail,
-      });
+      console.error("[loadProfile] Error:", e);
     }
   };
 
