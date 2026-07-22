@@ -782,19 +782,27 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
     if (form.pass.length < 6) { setError("Password minimal 6 karakter."); return; }
     setLoading(true);
     setError("");
-    const { data, error: err } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.pass,
-      options: { data: { nama_lengkap: form.nama, no_hp: form.hp } }
-    });
-    setLoading(false);
-    if (err) {
-      const msg = err.message || String(err) || "Terjadi kesalahan, coba lagi.";
-      setError(msg);
-      return;
+    try {
+      const { data, error: err } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.pass,
+        options: { data: { nama_lengkap: form.nama, no_hp: form.hp } }
+      });
+      setLoading(false);
+      if (err) {
+        // err.message bisa kosong/object saat DB error
+        const msg = (err.message && err.message !== "{}" && err.message !== "{}")
+          ? err.message
+          : "Gagal membuat akun. Pastikan migration SQL sudah dijalankan di Supabase.";
+        setError(msg);
+        return;
+      }
+      // signup sukses meski ada DB warning (profiles table belum ada)
+      setDone(true);
+    } catch (e: any) {
+      setLoading(false);
+      setError(e?.message || "Terjadi kesalahan jaringan, coba lagi.");
     }
-    // user created but needs email confirmation
-    setDone(true);
   };
 
   if (done) return (
