@@ -180,16 +180,17 @@ function WAButton({ wa }: { wa: string }) {
 }
 
 // ── Navbar ────────────────────────────────────────────────────────────
-function Navbar({ page, role, setPage, onLogout }: { page: Page; role: Role; setPage: (p: Page) => void; onLogout: () => void }) {
+function Navbar({ page, role, setPage, onLogout, namaFarm }: { page: Page; role: Role; setPage: (p: Page) => void; onLogout: () => void; namaFarm: string }) {
   const [open, setOpen] = useState(false);
+  const firstLetter = namaFarm.charAt(0).toUpperCase();
   return (
     <nav className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b border-border">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <button onClick={() => setPage("beranda")} className="flex items-center gap-2">
           <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground text-xs font-bold font-display">D</span>
+            <span className="text-primary-foreground text-xs font-bold font-display">{firstLetter}</span>
           </div>
-          <span className="font-display font-bold text-foreground text-base">Dapur<span className="text-accent">Domba</span></span>
+          <span className="font-display font-bold text-foreground text-base">{namaFarm}</span>
         </button>
 
         <div className="hidden md:flex items-center gap-5">
@@ -2207,7 +2208,7 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: rgba(92,67,32,0.2); border-radius: 99px; }
       `}</style>
 
-      <Navbar page={page} role={role} setPage={setPage} onLogout={handleLogout} />
+      <Navbar page={page} role={role} setPage={setPage} onLogout={handleLogout} namaFarm={cfg.namaFarm} />
 
       <main>
         {page === "beranda" && <PageBeranda setPage={setPage} setSelectedId={setSelectedId} role={role} cfg={cfg} produkLain={produkLain} sheepData={sheepData} />}
