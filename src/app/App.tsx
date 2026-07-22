@@ -1015,6 +1015,7 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
           <Phone className="w-4 h-4" /> Hubungi Admin via WhatsApp
         </a>
       </div>
+      )}
     </div>
   );
 }
