@@ -1645,6 +1645,7 @@ function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg:
   const safeProfile = { nama: adminProfile?.nama ?? "", email: adminProfile?.email ?? "", hp: adminProfile?.hp ?? "" };
   const [local, setLocal] = useState<SiteConfig>({ ...cfg });
   const [savedSite, setSavedSite] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"" | "server" | "local">("");
   const [showMigration, setShowMigration] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -1656,10 +1657,15 @@ function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg:
   const [passError, setPassError] = useState("");
   const [showPass, setShowPass] = useState({ lama: false, baru: false, konfirmasi: false });
 
-  const handleSaveSite = () => {
-    setCfg(local);
+  const handleSaveSite = async () => {
+    const result = await setCfg(local);
     setSavedSite(true);
-    setTimeout(() => setSavedSite(false), 2500);
+    if (result === "success") {
+      setSaveStatus("server");
+    } else {
+      setSaveStatus("local");
+    }
+    setTimeout(() => { setSavedSite(false); setSaveStatus(""); }, 3500);
   };
 
   const handleSaveProfile = async () => {
@@ -1870,8 +1876,12 @@ function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg:
       </div>
 
       <button onClick={handleSaveSite}
-        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedSite ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
-        {savedSite ? <><Check className="w-4 h-4" /> Semua Pengaturan Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan Semua Pengaturan</>}
+        className={`w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedSite ? (saveStatus === "server" ? "bg-emerald-600 text-white" : "bg-amber-500 text-white") : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+        {savedSite ? (
+          saveStatus === "server" ?
+            <><Check className="w-4 h-4" /> Tersimpan di Server!</> :
+            <><Save className="w-4 h-4" /> Tersimpan Lokal (Deploy Edge Function untuk sinkronisasi)</>
+        ) : <><Save className="w-4 h-4" /> Simpan Semua Pengaturan</>}
       </button>
     </div>
   );
@@ -1892,7 +1902,17 @@ export default function App() {
   const loadSettings = async () => {
     try {
       const res = await fetch(`${SERVER_BASE}/settings`);
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Fallback: load from localStorage if server function unavailable
+        const local = localStorage.getItem("dapurdomba_settings");
+        if (local) {
+          try {
+            const d = JSON.parse(local);
+            setCfg({ ...DEFAULT_CFG, ...d, cicilanAktif: d.cicilanAktif === true || d.cicilanAktif === "true" });
+          } catch {}
+        }
+        return;
+      }
       const d = await res.json();
       if (d.error) return;
       setCfg({
@@ -1918,15 +1938,29 @@ export default function App() {
 
   const handleSaveSettings = async (newCfg: SiteConfig) => {
     setCfg(newCfg);
+    // Always save to localStorage as fallback
+    try {
+      const localPayload: Record<string, any> = {};
+      for (const [k, v] of Object.entries(newCfg)) localPayload[k] = v;
+      localStorage.setItem("dapurdomba_settings", JSON.stringify(localPayload));
+    } catch {}
+    // Try to save to server
     try {
       const payload: Record<string, string> = {};
       for (const [k, v] of Object.entries(newCfg)) payload[k] = String(v);
-      await fetch(`${SERVER_BASE}/settings`, {
+      const res = await fetch(`${SERVER_BASE}/settings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-    } catch {}
+      if (res.ok) {
+        const d = await res.json();
+        if (d.ok) return "success";
+      }
+      return "local"; // Saved locally only
+    } catch {
+      return "local";
+    }
   };
 
   const loadProducts = async () => {
