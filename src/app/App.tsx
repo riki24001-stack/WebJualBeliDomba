@@ -84,8 +84,8 @@ async function uploadImageToServer(file: File): Promise<string> {
     fd.append("file", file);
     const res = await fetch(`${SERVER_BASE}/upload`, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${publicAnonKey}` },
-      body: fd
+      headers: { Authorization: `Bearer ${publicAnonKey}` },
+      body: fd,
     });
     if (res.ok) return (await res.json()).url;
   } catch {}
@@ -180,17 +180,16 @@ function WAButton({ wa }: { wa: string }) {
 }
 
 // ── Navbar ────────────────────────────────────────────────────────────
-function Navbar({ page, role, setPage, onLogout, namaFarm }: { page: Page; role: Role; setPage: (p: Page) => void; onLogout: () => void; namaFarm: string }) {
+function Navbar({ page, role, setPage, onLogout }: { page: Page; role: Role; setPage: (p: Page) => void; onLogout: () => void }) {
   const [open, setOpen] = useState(false);
-  const firstLetter = namaFarm.charAt(0).toUpperCase();
   return (
     <nav className="sticky top-0 z-40 bg-card/95 backdrop-blur-sm border-b border-border">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <button onClick={() => setPage("beranda")} className="flex items-center gap-2">
           <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-primary-foreground text-xs font-bold font-display">{firstLetter}</span>
+            <span className="text-primary-foreground text-xs font-bold font-display">D</span>
           </div>
-          <span className="font-display font-bold text-foreground text-base">{namaFarm}</span>
+          <span className="font-display font-bold text-foreground text-base">Dapur<span className="text-accent">Domba</span></span>
         </button>
 
         <div className="hidden md:flex items-center gap-5">
@@ -819,6 +818,7 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [showPass, setShowPass] = useState({ pass: false, konfirmasi: false });
 
   const handleSignup = async () => {
     if (!form.nama || !form.hp || !form.pass) { setError("Semua field wajib diisi."); return; }
@@ -838,10 +838,15 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
       });
       if (err) {
         setLoading(false);
-        if (err.message?.includes("already registered") || err.message?.includes("already exists") || err.message?.includes("User already registered")) {
+        const msg = err.message || (err as any).error_description || (err as any).error || JSON.stringify(err);
+        if (msg?.includes("already registered") || msg?.includes("already exists") || msg?.includes("User already registered")) {
           setError("No. HP ini sudah terdaftar. Silakan masuk.");
+        } else if (msg?.includes("rate limit") || (err as any).status === 429) {
+          setError("Terlalu banyak percobaan daftar dalam waktu singkat. Coba lagi beberapa menit lagi.");
+        } else if (!msg || msg === "{}") {
+          setError("Gagal membuat akun. Server autentikasi bermasalah — coba lagi sebentar lagi atau hubungi admin.");
         } else {
-          setError(`Gagal: ${err.message}`);
+          setError(`Gagal: ${msg}`);
         }
         return;
       }
@@ -897,8 +902,18 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
           ].map(f => (
             <div key={f.id}>
               <label className="block text-sm font-medium mb-1.5">{f.label}</label>
-              <input type={f.type} value={(form as any)[f.id]} onChange={e => setForm(v => ({ ...v, [f.id]: e.target.value }))} placeholder={f.placeholder}
-                className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              {f.type === "password" ? (
+                <div className="relative">
+                  <input type={(showPass as any)[f.id] ? "text" : "password"} value={(form as any)[f.id]} onChange={e => setForm(v => ({ ...v, [f.id]: e.target.value }))} placeholder={f.placeholder}
+                    className="w-full px-3 py-2.5 pr-10 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  <button type="button" onClick={() => setShowPass(v => ({ ...v, [f.id]: !(v as any)[f.id] }))} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    {(showPass as any)[f.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              ) : (
+                <input type={f.type} value={(form as any)[f.id]} onChange={e => setForm(v => ({ ...v, [f.id]: e.target.value }))} placeholder={f.placeholder}
+                  className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              )}
             </div>
           ))}
           <p className="text-xs text-muted-foreground bg-muted rounded-xl px-3 py-2">
@@ -925,22 +940,6 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
 
 // ── PAGE: Cicilan ─────────────────────────────────────────────────────
 function PageCicilan({ cfg }: { cfg: SiteConfig }) {
-  const [hasCicilan, setHasCicilan] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const checkCicilan = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      const { data } = await supabase.from("paket_cicilan").select("id").eq("user_id", user.id).eq("status", "aktif").limit(1);
-      setHasCicilan(!!data && data.length > 0);
-      setLoading(false);
-    };
-    checkCicilan();
-  }, []);
-
-  if (loading) return <div className="max-w-2xl mx-auto px-4 py-12 text-center text-muted-foreground">Memuat data...</div>;
-
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       <div>
@@ -948,30 +947,27 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
         <h1 className="font-display text-2xl font-bold">Cicilan Saya</h1>
       </div>
 
-      {/* Info rekening - Hanya muncul jika ada cicilan aktif */}
-      {hasCicilan && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-          <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-            <CreditCard className="w-3.5 h-3.5" /> Bayar Cicilan ke Rekening Ini
-          </p>
-          <div className="bg-white rounded-xl border border-amber-100 divide-y divide-amber-100">
-            {[
-              { label: "Bank", value: cfg.namaBank },
-              { label: "No. Rekening", value: cfg.norek, mono: true },
-              { label: "Atas Nama", value: cfg.namaRekening },
-            ].map(r => (
-              <div key={r.label} className="flex items-center justify-between px-3 py-2.5">
-                <span className="text-xs text-muted-foreground">{r.label}</span>
-                <span className={`text-sm ${r.mono ? "font-mono tracking-wider" : "font-semibold"}`}>{r.value || "—"}</span>
-              </div>
-            ))}
-          </div>
+      {/* Info rekening */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+        <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <CreditCard className="w-3.5 h-3.5" /> Bayar Cicilan ke Rekening Ini
+        </p>
+        <div className="bg-white rounded-xl border border-amber-100 divide-y divide-amber-100">
+          {[
+            { label: "Bank", value: cfg.namaBank },
+            { label: "No. Rekening", value: cfg.norek, mono: true },
+            { label: "Atas Nama", value: cfg.namaRekening },
+          ].map(r => (
+            <div key={r.label} className="flex items-center justify-between px-3 py-2.5">
+              <span className="text-xs text-muted-foreground">{r.label}</span>
+              <span className={`text-sm ${r.mono ? "font-mono tracking-wider" : "font-semibold"}`}>{r.value || "—"}</span>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* Empty state - Muncul jika tidak ada cicilan */}
-      {!hasCicilan && (
-        <div className="text-center py-14 bg-card border border-border rounded-2xl">
+      {/* Empty state */}
+      <div className="text-center py-14 bg-card border border-border rounded-2xl">
         <CreditCard className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
         <p className="font-semibold mb-1">Belum ada cicilan aktif</p>
         <p className="text-sm text-muted-foreground mb-4">Hubungi admin untuk mendaftarkan paket cicilan domba.</p>
@@ -1671,7 +1667,6 @@ CREATE TRIGGER on_auth_user_created
 function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg: (c: SiteConfig) => void; adminProfile: { nama: string; email: string; hp: string } }) {
   const safeProfile = { nama: adminProfile?.nama ?? "", email: adminProfile?.email ?? "", hp: adminProfile?.hp ?? "" };
   const [local, setLocal] = useState<SiteConfig>({ ...cfg });
-  useEffect(() => { setLocal({ ...cfg }); }, [cfg]);
   const [savedSite, setSavedSite] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"" | "server" | "local">("");
   const [showMigration, setShowMigration] = useState(false);
@@ -1949,7 +1944,7 @@ export default function App() {
   const loadSettings = async () => {
     try {
       const res = await fetch(`${SERVER_BASE}/settings`, {
-        headers: { "Authorization": `Bearer ${publicAnonKey}` }
+        headers: { Authorization: `Bearer ${publicAnonKey}` },
       });
       if (!res.ok) {
         // Fallback: load from localStorage if server function unavailable
@@ -2001,7 +1996,7 @@ export default function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${publicAnonKey}`
+          Authorization: `Bearer ${publicAnonKey}`,
         },
         body: JSON.stringify(payload),
       });
@@ -2228,7 +2223,7 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: rgba(92,67,32,0.2); border-radius: 99px; }
       `}</style>
 
-      <Navbar page={page} role={role} setPage={setPage} onLogout={handleLogout} namaFarm={cfg.namaFarm} />
+      <Navbar page={page} role={role} setPage={setPage} onLogout={handleLogout} />
 
       <main>
         {page === "beranda" && <PageBeranda setPage={setPage} setSelectedId={setSelectedId} role={role} cfg={cfg} produkLain={produkLain} sheepData={sheepData} />}
