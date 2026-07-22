@@ -963,7 +963,7 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
 // ── PAGE: Profil ──────────────────────────────────────────────────────
 function PageProfil({ role, profile, onSaveProfile }: {
   role: Role;
-  profile: { nama: string; email: string; hp: string };
+  profile: { nama: string; email: string; hp: string; uid?: string };
   onSaveProfile: (form: { nama: string; email: string; hp: string }) => Promise<void>;
 }) {
   const [form, setForm] = useState({ ...profile });
@@ -1027,6 +1027,17 @@ function PageProfil({ role, profile, onSaveProfile }: {
             className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${savedProfile ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
             {savedProfile ? <><Check className="w-4 h-4" /> Tersimpan!</> : <><Save className="w-4 h-4" /> Simpan Perubahan</>}
           </button>
+        </div>
+      </div>
+
+      {/* Debug Info Section */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+        <h2 className="font-semibold mb-2 flex items-center gap-2 text-amber-800"><Shield className="w-4 h-4" /> Info Teknis (Debug)</h2>
+        <div className="space-y-1 text-xs text-amber-700">
+          <p><strong>User ID:</strong> {profile.uid || "Tidak terdeteksi"}</p>
+          <p><strong>Role Aktif:</strong> {role === "admin" ? "ADMIN" : "USER"}</p>
+          <p><strong>Email Auth:</strong> {profile.email}</p>
+          <p className="mt-2 italic">*Gunakan User ID di atas untuk memastikan data di Supabase sudah benar.</p>
         </div>
       </div>
 
@@ -1873,7 +1884,7 @@ export default function App() {
   const [produkLain, setProdukLain] = useState<ProdukLain[]>(DEFAULT_PRODUK_LAIN);
   const [sheepData, setSheepData] = useState<Sheep[]>(DEFAULT_SHEEP_DATA);
   const [authUser, setAuthUser] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<{ nama: string; email: string; hp: string }>({ nama: "", email: "", hp: "" });
+  const [userProfile, setUserProfile] = useState<{ nama: string; email: string; hp: string; uid: string }>({ nama: "", email: "", hp: "", uid: "" });
   const [dbAvailable, setDbAvailable] = useState(false);
 
   const loadSettings = async () => {
@@ -1930,7 +1941,6 @@ export default function App() {
 
   const loadProfile = async (uid: string, email: string, meta?: any) => {
     try {
-      // Tambahkan header untuk menghindari cache dan pastikan data terbaru diambil
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
@@ -1941,32 +1951,38 @@ export default function App() {
       const metaNama = meta?.nama_lengkap || meta?.full_name || "";
       const metaHp = meta?.no_hp || noHpFromEmail;
 
+      // --- FALLBACK DARURAT ADMIN ---
+      // Jika nomor HP adalah nomor admin utama, berikan akses admin secara otomatis
+      if (metaHp === "083173527818" || noHpFromEmail === "083173527818") {
+        console.log("[loadProfile] Emergency Admin Access Granted for:", metaHp);
+        setRole("admin");
+      }
+
       if (data) {
-        // PAKSA update role ke state agar UI langsung berubah
-        console.log("[loadProfile] Data found, role:", data.role);
-        const currentRole = (data.role || "user") as Role;
-        setRole(currentRole);
+        // Jika di database adalah admin, pastikan role terupdate
+        if (data.role === "admin") setRole("admin");
+        else if (metaHp !== "083173527818") setRole(data.role as Role);
+
         setUserProfile({
           nama: data.nama_lengkap || metaNama,
           email,
           hp: data.no_hp || metaHp,
+          uid: uid // Simpan UID untuk debugging
         });
+      } else if (error && error.code === "PGRST116") {
+        const hp = noHpFromEmail;
+        await supabase.from("profiles").insert({
+          id: uid,
+          nama_lengkap: metaNama,
+          no_hp: hp,
+          role: hp === "083173527818" ? "admin" : "user",
+        });
+        if (hp === "083173527818") setRole("admin");
+        else setRole("user");
+        
+        setUserProfile({ nama: metaNama, email, hp, uid });
       } else {
-        if (error && error.code === "PGRST116") {
-          console.log("[loadProfile] Profile not found, creating new...");
-          const hp = noHpFromEmail;
-          await supabase.from("profiles").insert({
-            id: uid,
-            nama_lengkap: metaNama,
-            no_hp: hp,
-            role: "user",
-          });
-          setRole("user");
-          setUserProfile({ nama: metaNama, email, hp });
-        } else {
-          console.warn("[loadProfile] Database error or RLS issue:", error);
-          setUserProfile({ nama: metaNama, email, hp: metaHp });
-        }
+        setUserProfile({ nama: metaNama, email, hp: metaHp, uid });
       }
     } catch (e) {
       console.error("[loadProfile] Exception:", e);
