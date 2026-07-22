@@ -64,7 +64,7 @@ const DEFAULT_CFG: SiteConfig = {
   alamat: "Boyolali, Jawa Tengah",
   alamatLengkap: "Jl. Peternakan No. 12, Boyolali, Jawa Tengah 57311",
   googleMaps: "https://maps.google.com/?q=Boyolali,Jawa+Tengah",
-  namaFarm: "DapurDomba",
+  namaFarm: "Putra Tunggal Farm",
   namaBank: "BRI",
   norek: "1234-5678-9012-3456",
   namaRekening: "Bapak Harto Wijaya",
@@ -352,7 +352,12 @@ function PageBeranda({ setPage, setSelectedId, role, cfg, produkLain, sheepData 
           {/* Mobile: horizontal scroll */}
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory no-scrollbar sm:hidden">
             {produkLain.map(p => (
-              <div key={p.id} className="flex-none w-40 snap-start bg-card border border-border rounded-2xl overflow-hidden">
+              <a
+                key={p.id}
+                href={`https://wa.me/${cfg.whatsapp}?text=${encodeURIComponent(`Halo admin, saya ingin menanyakan stok "${p.nama}" (harga ${fmtRp(p.harga)}/${p.satuan}). Apakah masih tersedia dan saya ingin memesan, mohon infonya.`)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="flex-none w-40 snap-start bg-card border border-border rounded-2xl overflow-hidden hover:shadow-md transition-shadow active:scale-[0.98]"
+              >
                 <div className="h-28 bg-muted overflow-hidden">
                   {p.foto ? <img src={p.foto} alt={p.nama} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="w-6 h-6" /></div>}
                 </div>
@@ -363,14 +368,22 @@ function PageBeranda({ setPage, setSelectedId, role, cfg, produkLain, sheepData 
                   <span className={`inline-block mt-1.5 text-xs px-1.5 py-0.5 rounded-full font-semibold ${p.stok > 0 ? "bg-emerald-100 text-emerald-700" : "bg-stone-200 text-stone-500"}`}>
                     {p.stok > 0 ? `Stok ${p.stok}` : "Habis"}
                   </span>
+                  <span className="flex items-center gap-1 mt-2 text-[10px] font-semibold text-[#25D366]">
+                    <MessageCircle className="w-3 h-3 fill-[#25D366]" /> Tanya via WA
+                  </span>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
           {/* Desktop: grid */}
           <div className="hidden sm:grid sm:grid-cols-3 gap-4">
             {produkLain.map(p => (
-              <div key={p.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:shadow-md transition-shadow">
+              <a
+                key={p.id}
+                href={`https://wa.me/${cfg.whatsapp}?text=${encodeURIComponent(`Halo admin, saya ingin menanyakan stok "${p.nama}" (harga ${fmtRp(p.harga)}/${p.satuan}). Apakah masih tersedia dan saya ingin memesan, mohon infonya.`)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="bg-card border border-border rounded-2xl overflow-hidden hover:shadow-md transition-shadow"
+              >
                 <div className="h-36 bg-muted overflow-hidden">
                   {p.foto ? <img src={p.foto} alt={p.nama} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="w-8 h-8" /></div>}
                 </div>
@@ -383,8 +396,11 @@ function PageBeranda({ setPage, setSelectedId, role, cfg, produkLain, sheepData 
                       {p.stok > 0 ? `Stok ${p.stok}` : "Habis"}
                     </span>
                   </div>
+                  <span className="flex items-center gap-1 mt-2 text-xs font-semibold text-[#25D366]">
+                    <MessageCircle className="w-3.5 h-3.5 fill-[#25D366]" /> Tanya stok / pesan via WhatsApp
+                  </span>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         </div>
@@ -1127,9 +1143,9 @@ function PageAdmin({
   cfg: SiteConfig; setCfg: (c: SiteConfig) => void;
   produkLain: ProdukLain[]; setProdukLain: (p: ProdukLain[]) => void;
   sheepData: Sheep[]; setSheepData: (s: Sheep[]) => void;
-  onSaveSheep: (form: Omit<Sheep, "id">, file: File | null, editId: string | null) => Promise<void>;
+  onSaveSheep: (form: Omit<Sheep, "id">, file: File | null, editId: string | null) => Promise<{ ok: boolean; error?: string }>;
   onDeleteSheep: (id: string) => Promise<void>;
-  onSaveProduk: (form: Omit<ProdukLain, "id">, file: File | null, editId: string | null) => Promise<void>;
+  onSaveProduk: (form: Omit<ProdukLain, "id">, file: File | null, editId: string | null) => Promise<{ ok: boolean; error?: string }>;
   onDeleteProduk: (id: string) => Promise<void>;
   dbAvailable: boolean;
   adminProfile: { nama: string; email: string; hp: string };
@@ -1212,20 +1228,98 @@ function PageAdmin({
         </div>
       )}
 
-      {tab === "cicilan" && (
-        <div>
-          <h2 className="font-semibold mb-3">Kelola Cicilan</h2>
-          <div className="text-center py-14 bg-card border border-border rounded-2xl text-muted-foreground">
-            <CreditCard className="w-8 h-8 mx-auto mb-2" />
-            <p className="font-semibold text-sm">Belum ada data cicilan</p>
-            <p className="text-xs mt-1">Data cicilan pengguna akan tampil di sini.</p>
-          </div>
-        </div>
-      )}
+      {tab === "cicilan" && <TabCicilan cfg={cfg} />}
 
       {tab === "user" && <TabUser />}
 
       {tab === "pengaturan" && <TabPengaturan cfg={cfg} setCfg={setCfg} adminProfile={adminProfile} />}
+    </div>
+  );
+}
+
+// ── Tab Cicilan (Admin) ────────────────────────────────────────────────
+function TabCicilan({ cfg }: { cfg: SiteConfig }) {
+  const [users, setUsers] = useState<{ id: string; nama_lengkap: string; no_hp: string }[]>([]);
+  const [cicilanMap, setCicilanMap] = useState<Record<string, { id: string; status: string }>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const { data: profil } = await supabase.from("profiles").select("id, nama_lengkap, no_hp").eq("role", "user").order("created_at", { ascending: false });
+    const { data: cicilan } = await supabase.from("paket_cicilan").select("id, user_id, status").eq("status", "aktif");
+    setUsers(profil || []);
+    const map: Record<string, { id: string; status: string }> = {};
+    (cicilan || []).forEach(c => { map[c.user_id] = { id: c.id, status: c.status }; });
+    setCicilanMap(map);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleActivate = async (userId: string) => {
+    setSaving(userId);
+    await supabase.from("paket_cicilan").insert({
+      user_id: userId,
+      status: "aktif",
+      cicilan_ke: 1,
+      total_cicilan: parseInt(cfg.cicilanMaksimal) || 3,
+      nominal: 0,
+    });
+    await load();
+    setSaving(null);
+  };
+
+  const handleDeactivate = async (cicilanId: string) => {
+    setSaving(cicilanId);
+    await supabase.from("paket_cicilan").update({ status: "lunas" }).eq("id", cicilanId);
+    await load();
+    setSaving(null);
+  };
+
+  if (loading) return <div className="text-center py-12 text-muted-foreground text-sm">Memuat data cicilan...</div>;
+
+  return (
+    <div>
+      <h2 className="font-semibold mb-1">Kelola Cicilan</h2>
+      <p className="text-xs text-muted-foreground mb-3">Aktifkan cicilan untuk pengguna agar info rekening pembayaran muncul di halaman "Cicilan Saya" mereka.</p>
+      {users.length === 0 ? (
+        <div className="text-center py-14 bg-card border border-border rounded-2xl text-muted-foreground">
+          <CreditCard className="w-8 h-8 mx-auto mb-2" />
+          <p className="font-semibold text-sm">Belum ada pengguna terdaftar</p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {users.map(u => {
+            const active = cicilanMap[u.id];
+            return (
+              <div key={u.id} className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <User className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold text-sm block">{u.nama_lengkap || "—"}</span>
+                  <span className="text-xs text-muted-foreground">{u.no_hp}</span>
+                </div>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                  {active ? "Cicilan Aktif" : "Belum Aktif"}
+                </span>
+                {active ? (
+                  <button onClick={() => handleDeactivate(active.id)} disabled={saving === active.id}
+                    className="px-3 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60 flex-shrink-0">
+                    {saving === active.id ? "..." : "Nonaktifkan"}
+                  </button>
+                ) : (
+                  <button onClick={() => handleActivate(u.id)} disabled={saving === u.id}
+                    className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60 flex-shrink-0">
+                    {saving === u.id ? "..." : "Aktifkan"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1303,7 +1397,7 @@ function TabDomba({
   sheepData, setSheepData, onSave, onDelete,
 }: {
   sheepData: Sheep[]; setSheepData: (s: Sheep[]) => void;
-  onSave: (form: Omit<Sheep, "id">, file: File | null, editId: string | null) => Promise<void>;
+  onSave: (form: Omit<Sheep, "id">, file: File | null, editId: string | null) => Promise<{ ok: boolean; error?: string }>;
   onDelete: (id: string) => Promise<void>;
 }) {
   const [editId, setEditId] = useState<string | null>(null);
@@ -1312,11 +1406,12 @@ function TabDomba({
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const openAdd = () => { setForm({ ...EMPTY_SHEEP }); setEditId(null); setShowForm(true); setSaved(false); setPhotoFile(null); };
+  const openAdd = () => { setForm({ ...EMPTY_SHEEP }); setEditId(null); setShowForm(true); setSaved(false); setPhotoFile(null); setSaveError(null); };
   const openEdit = (s: Sheep) => {
     setForm({ kode: s.kode, nama: s.nama, harga: s.harga, status: s.status, jenisKelamin: s.jenisKelamin, umurBulan: s.umurBulan, beratKg: s.beratKg, tinggiCm: s.tinggiCm, foto: [...s.foto], deskripsi: s.deskripsi });
-    setEditId(s.id); setShowForm(true); setSaved(false); setPhotoFile(null);
+    setEditId(s.id); setShowForm(true); setSaved(false); setPhotoFile(null); setSaveError(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -1327,14 +1422,14 @@ function TabDomba({
   const handleSave = async () => {
     if (!form.nama.trim()) return;
     setSaving(true);
-    if (editId) {
-      setSheepData(sheepData.map(s => s.id === editId ? { ...form, id: editId } : s));
-    } else {
-      setSheepData([...sheepData, { ...form, id: Date.now().toString() }]);
-    }
-    await onSave(form, photoFile, editId);
-    setSaved(true);
+    setSaveError(null);
+    const result = await onSave(form, photoFile, editId);
     setSaving(false);
+    if (!result.ok) {
+      setSaveError(result.error || "Gagal menyimpan data. Pastikan akun ini punya akses admin di database (tabel profiles.role = 'admin').");
+      return;
+    }
+    setSaved(true);
     setTimeout(() => { setShowForm(false); setSaved(false); }, 1200);
   };
 
@@ -1428,6 +1523,13 @@ function TabDomba({
             </div>
           </div>
 
+          {saveError && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
+              <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700">{saveError}</p>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={saving}
               className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${saved ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
@@ -1473,7 +1575,7 @@ function TabProdukLain({
   produkLain, setProdukLain, onSave, onDelete,
 }: {
   produkLain: ProdukLain[]; setProdukLain: (p: ProdukLain[]) => void;
-  onSave: (form: Omit<ProdukLain, "id">, file: File | null, editId: string | null) => Promise<void>;
+  onSave: (form: Omit<ProdukLain, "id">, file: File | null, editId: string | null) => Promise<{ ok: boolean; error?: string }>;
   onDelete: (id: string) => Promise<void>;
 }) {
   const [editId, setEditId] = useState<string | null>(null);
@@ -1482,21 +1584,22 @@ function TabProdukLain({
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const openAdd = () => { setForm({ ...EMPTY_PRODUK }); setEditId(null); setShowForm(true); setSaved(false); setPhotoFile(null); };
-  const openEdit = (p: ProdukLain) => { setForm({ nama: p.nama, kategori: p.kategori, harga: p.harga, satuan: p.satuan, stok: p.stok, foto: p.foto }); setEditId(p.id); setShowForm(true); setSaved(false); setPhotoFile(null); };
+  const openAdd = () => { setForm({ ...EMPTY_PRODUK }); setEditId(null); setShowForm(true); setSaved(false); setPhotoFile(null); setSaveError(null); };
+  const openEdit = (p: ProdukLain) => { setForm({ nama: p.nama, kategori: p.kategori, harga: p.harga, satuan: p.satuan, stok: p.stok, foto: p.foto }); setEditId(p.id); setShowForm(true); setSaved(false); setPhotoFile(null); setSaveError(null); };
 
   const handleSave = async () => {
     if (!form.nama.trim()) return;
     setSaving(true);
-    if (editId) {
-      setProdukLain(produkLain.map(p => p.id === editId ? { ...form, id: editId } : p));
-    } else {
-      setProdukLain([...produkLain, { ...form, id: Date.now().toString() }]);
-    }
-    await onSave(form, photoFile, editId);
-    setSaved(true);
+    setSaveError(null);
+    const result = await onSave(form, photoFile, editId);
     setSaving(false);
+    if (!result.ok) {
+      setSaveError(result.error || "Gagal menyimpan data. Pastikan akun ini punya akses admin di database (tabel profiles.role = 'admin').");
+      return;
+    }
+    setSaved(true);
     setTimeout(() => { setShowForm(false); setSaved(false); }, 1200);
   };
 
@@ -1557,6 +1660,13 @@ function TabProdukLain({
               </label>
             </div>
           </div>
+          {saveError && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3">
+              <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700">{saveError}</p>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-1">
             <button onClick={handleSave} disabled={saving}
               className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-60 ${saved ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
@@ -1647,11 +1757,23 @@ CREATE TABLE IF NOT EXISTS site_settings (
   value TEXT NOT NULL DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS paket_cicilan (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'aktif' CHECK (status IN ('aktif','lunas','batal')),
+  cicilan_ke INT NOT NULL DEFAULT 1,
+  total_cicilan INT NOT NULL DEFAULT 1,
+  nominal BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE domba_spesifikasi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE product_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE site_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE paket_cicilan ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "profiles_select_own" ON profiles FOR SELECT USING (auth.uid() = id OR EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'admin'));
 CREATE POLICY "profiles_update_own" ON profiles FOR UPDATE USING (auth.uid() = id);
@@ -1664,6 +1786,8 @@ CREATE POLICY "images_select_all" ON product_images FOR SELECT USING (TRUE);
 CREATE POLICY "images_admin_write" ON product_images FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 CREATE POLICY "settings_select_all" ON site_settings FOR SELECT USING (TRUE);
 CREATE POLICY "settings_admin_write" ON site_settings FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "cicilan_select_own" ON paket_cicilan FOR SELECT USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "cicilan_admin_write" ON paket_cicilan FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
@@ -2130,7 +2254,7 @@ export default function App() {
     setPage("beranda");
   };
 
-  const handleSaveSheep = async (form: Omit<Sheep, "id">, file: File | null, editId: string | null) => {
+  const handleSaveSheep = async (form: Omit<Sheep, "id">, file: File | null, editId: string | null): Promise<{ ok: boolean; error?: string }> => {
     const productData = {
       kategori: "domba" as const,
       nama: form.nama,
@@ -2144,24 +2268,28 @@ export default function App() {
     let productId = editId;
 
     if (editId) {
-      await supabase.from("products").update(productData).eq("id", editId);
-      await supabase.from("domba_spesifikasi").update({
+      const { error: upErr } = await supabase.from("products").update(productData).eq("id", editId);
+      if (upErr) return { ok: false, error: upErr.message };
+      const { error: specErr } = await supabase.from("domba_spesifikasi").update({
         jenis_kelamin: form.jenisKelamin,
         umur_bulan: form.umurBulan,
         berat_kg: form.beratKg,
         tinggi_cm: form.tinggiCm,
       }).eq("product_id", editId);
+      if (specErr) return { ok: false, error: specErr.message };
     } else {
-      const { data } = await supabase.from("products").insert(productData).select("id").single();
-      if (!data) return;
+      const { data, error: insErr } = await supabase.from("products").insert(productData).select("id").single();
+      if (insErr) return { ok: false, error: insErr.message };
+      if (!data) return { ok: false, error: "Data tidak tersimpan (kemungkinan izin akses admin di database belum diatur)." };
       productId = data.id;
-      await supabase.from("domba_spesifikasi").insert({
+      const { error: specErr } = await supabase.from("domba_spesifikasi").insert({
         product_id: productId,
         jenis_kelamin: form.jenisKelamin,
         umur_bulan: form.umurBulan,
         berat_kg: form.beratKg,
         tinggi_cm: form.tinggiCm,
       });
+      if (specErr) return { ok: false, error: specErr.message };
     }
 
     if (file && productId) {
@@ -2176,6 +2304,7 @@ export default function App() {
     }
 
     await loadProducts();
+    return { ok: true };
   };
 
   const handleDeleteSheep = async (id: string) => {
@@ -2183,7 +2312,7 @@ export default function App() {
     await supabase.from("products").delete().eq("id", id);
   };
 
-  const handleSaveProduk = async (form: Omit<ProdukLain, "id">, file: File | null, editId: string | null) => {
+  const handleSaveProduk = async (form: Omit<ProdukLain, "id">, file: File | null, editId: string | null): Promise<{ ok: boolean; error?: string }> => {
     const productData = {
       kategori: "lainnya" as const,
       nama: form.nama,
@@ -2197,10 +2326,12 @@ export default function App() {
     let productId = editId;
 
     if (editId) {
-      await supabase.from("products").update(productData).eq("id", editId);
+      const { error: upErr } = await supabase.from("products").update(productData).eq("id", editId);
+      if (upErr) return { ok: false, error: upErr.message };
     } else {
-      const { data } = await supabase.from("products").insert(productData).select("id").single();
-      if (!data) return;
+      const { data, error: insErr } = await supabase.from("products").insert(productData).select("id").single();
+      if (insErr) return { ok: false, error: insErr.message };
+      if (!data) return { ok: false, error: "Data tidak tersimpan (kemungkinan izin akses admin di database belum diatur)." };
       productId = data.id;
     }
 
@@ -2216,6 +2347,7 @@ export default function App() {
     }
 
     await loadProducts();
+    return { ok: true };
   };
 
   const handleDeleteProduk = async (id: string) => {
