@@ -1004,7 +1004,7 @@ function PageSignup({ setPage, afterAuthPage, role }: { setPage: (p: Page) => vo
 // ── PAGE: Cicilan ─────────────────────────────────────────────────────
 function PageCicilan({ cfg }: { cfg: SiteConfig }) {
   const [hasCicilan, setHasCicilan] = useState(false);
-  const [cicilanData, setCicilanData] = useState<{ cicilan_ke: number; total_cicilan: number } | null>(null);
+  const [cicilanData, setCicilanData] = useState<{ cicilan_ke: number; total_cicilan: number; total_harga: number; jumlah_dibayar: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1012,7 +1012,7 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
       const { data } = await supabase.from("paket_cicilan")
-        .select("id, cicilan_ke, total_cicilan")
+        .select("id, cicilan_ke, total_cicilan, total_harga, jumlah_dibayar")
         .eq("user_id", user.id)
         .eq("status", "aktif")
         .limit(1);
@@ -1025,6 +1025,28 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
     };
     checkCicilan();
   }, []);
+
+  const totalHarga = cicilanData?.total_harga || 0;
+  const jumlahDibayar = cicilanData?.jumlah_dibayar || 0;
+  const sisaTagihan = Math.max(0, totalHarga - jumlahDibayar);
+
+  const handleKirimBuktiTransfer = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    let nama = "Pelanggan";
+    if (user) {
+      const { data: profile } = await supabase.from("profiles").select("nama_lengkap").eq("id", user.id).single();
+      nama = profile?.nama_lengkap || nama;
+    }
+    const pesan =
+      `Halo Admin, saya *${nama}* ingin mengonfirmasi pembayaran cicilan domba.\n\n` +
+      `Total Harga: Rp ${totalHarga.toLocaleString("id-ID")}\n` +
+      `Sudah Dibayar: Rp ${jumlahDibayar.toLocaleString("id-ID")}\n` +
+      `Sisa Tagihan: Rp ${sisaTagihan.toLocaleString("id-ID")}\n` +
+      `Cicilan bulan ke: ${cicilanData?.cicilan_ke} dari ${cicilanData?.total_cicilan}\n\n` +
+      `Bukti transfer terlampir. Terima kasih.`;
+    const nomorAdmin = (cfg.whatsapp || "").replace(/\D/g, "");
+    window.open(`https://wa.me/${nomorAdmin}?text=${encodeURIComponent(pesan)}`, "_blank");
+  };
 
   if (loading) return <div className="max-w-2xl mx-auto px-4 py-12 text-center text-muted-foreground">Memuat data...</div>;
 
@@ -1061,6 +1083,21 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
                 <span>Selesai</span>
               </div>
             </div>
+
+            <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-border text-center">
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide">Total Harga</p>
+                <p className="font-semibold text-sm mt-0.5">Rp {totalHarga.toLocaleString("id-ID")}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide">Sudah Dibayar</p>
+                <p className="font-semibold text-sm mt-0.5 text-emerald-600">Rp {jumlahDibayar.toLocaleString("id-ID")}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide">Sisa Tagihan</p>
+                <p className="font-bold text-sm mt-0.5 text-primary">Rp {sisaTagihan.toLocaleString("id-ID")}</p>
+              </div>
+            </div>
           </div>
 
           {/* Info rekening */}
@@ -1083,6 +1120,12 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
             <p className="text-[10px] text-amber-700 mt-3 text-center italic">
               *Setelah transfer, silakan konfirmasi ke admin via WhatsApp
             </p>
+            <button
+              onClick={handleKirimBuktiTransfer}
+              className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors"
+            >
+              <MessageCircle className="w-4 h-4" /> Kirim Bukti Transfer
+            </button>
           </div>
         </div>
       )}
@@ -1326,21 +1369,22 @@ function PageAdmin({
 // ── Tab Cicilan (Admin) ────────────────────────────────────────────────
 function TabCicilan({ cfg }: { cfg: SiteConfig }) {
   const [users, setUsers] = useState<{ id: string; nama_lengkap: string; no_hp: string }[]>([]);
-  const [cicilanMap, setCicilanMap] = useState<Record<string, { id: string; status: string; cicilan_ke: number; total_cicilan: number }>>({});
+  const [cicilanMap, setCicilanMap] = useState<Record<string, { id: string; status: string; cicilan_ke: number; total_cicilan: number; total_harga: number; jumlah_dibayar: number }>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [errorMap, setErrorMap] = useState<Record<string, string>>({});
   const [durasiInput, setDurasiInput] = useState<Record<string, string>>({});
+  const [totalHargaInput, setTotalHargaInput] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
     const { data: profil, error: profilError } = await supabase.from("profiles").select("id, nama_lengkap, no_hp").eq("role", "user").order("created_at", { ascending: false });
-    const { data: cicilan, error: cicilanError } = await supabase.from("paket_cicilan").select("id, user_id, status, cicilan_ke, total_cicilan").eq("status", "aktif");
+    const { data: cicilan, error: cicilanError } = await supabase.from("paket_cicilan").select("id, user_id, status, cicilan_ke, total_cicilan, total_harga, jumlah_dibayar").eq("status", "aktif");
     if (profilError) console.error("Error loading users:", profilError);
     if (cicilanError) console.error("Error loading cicilan:", cicilanError);
     setUsers(profil || []);
-    const map: Record<string, { id: string; status: string; cicilan_ke: number; total_cicilan: number }> = {};
-    (cicilan || []).forEach(c => { map[c.user_id] = { id: c.id, status: c.status, cicilan_ke: c.cicilan_ke, total_cicilan: c.total_cicilan }; });
+    const map: Record<string, { id: string; status: string; cicilan_ke: number; total_cicilan: number; total_harga: number; jumlah_dibayar: number }> = {};
+    (cicilan || []).forEach(c => { map[c.user_id] = { id: c.id, status: c.status, cicilan_ke: c.cicilan_ke, total_cicilan: c.total_cicilan, total_harga: c.total_harga || 0, jumlah_dibayar: c.jumlah_dibayar || 0 }; });
     setCicilanMap(map);
     setLoading(false);
   };
@@ -1362,11 +1406,14 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
     setSaving(userId);
     setErrorMap(m => ({ ...m, [userId]: "" }));
     const durasi = parseInt(durasiInput[userId] || cfg.cicilanMaksimal) || 3;
+    const totalHarga = parseInt(totalHargaInput[userId] || "0") || 0;
     const { error } = await supabase.from("paket_cicilan").insert({
       user_id: userId,
       status: "aktif",
       cicilan_ke: 1,
       total_cicilan: durasi,
+      total_harga: totalHarga,
+      jumlah_dibayar: 0,
       nominal: 0,
     });
     if (error) {
@@ -1386,6 +1433,21 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
     }).eq("id", cicilanId);
     if (error) {
       console.error("Error updating progress:", error);
+      setErrorMap(m => ({ ...m, [userId]: friendlyError(error) }));
+    }
+    await load();
+    setSaving(null);
+  };
+
+  const handleUpdateKeuangan = async (cicilanId: string, userId: string, totalHarga: number, jumlahDibayar: number) => {
+    setSaving(cicilanId);
+    setErrorMap(m => ({ ...m, [userId]: "" }));
+    const { error } = await supabase.from("paket_cicilan").update({
+      total_harga: Math.max(0, totalHarga),
+      jumlah_dibayar: Math.max(0, jumlahDibayar),
+    }).eq("id", cicilanId);
+    if (error) {
+      console.error("Error updating keuangan:", error);
       setErrorMap(m => ({ ...m, [userId]: friendlyError(error) }));
     }
     await load();
@@ -1446,6 +1508,15 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
                         className="w-16 bg-background border border-border rounded-lg px-2 py-2 text-xs text-center"
                         title="Jumlah bulan cicilan"
                       />
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Total Harga (Rp)"
+                        value={totalHargaInput[u.id] ?? ""}
+                        onChange={(e) => setTotalHargaInput(m => ({ ...m, [u.id]: e.target.value }))}
+                        className="w-32 bg-background border border-border rounded-lg px-2 py-2 text-xs"
+                        title="Total harga domba"
+                      />
                       <button onClick={() => handleActivate(u.id)} disabled={saving === u.id}
                         className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60 flex-shrink-0">
                         {saving === u.id ? "..." : "Aktifkan"}
@@ -1505,6 +1576,32 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
                     </div>
                     <p className="text-[10px] text-muted-foreground text-center">
                       {active.cicilan_ke} dari {active.total_cicilan} bulan terbayar &middot; <span className="font-semibold text-foreground">Sisa {sisaBulan} bulan lagi</span>
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Total Harga (Rp)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          defaultValue={active.total_harga}
+                          onBlur={(e) => handleUpdateKeuangan(active.id, u.id, parseInt(e.target.value) || 0, active.jumlah_dibayar)}
+                          className="w-full bg-background border border-border rounded-lg px-2 py-1 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Jumlah Dibayar (Rp)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          defaultValue={active.jumlah_dibayar}
+                          onBlur={(e) => handleUpdateKeuangan(active.id, u.id, active.total_harga, parseInt(e.target.value) || 0)}
+                          className="w-full bg-background border border-border rounded-lg px-2 py-1 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs font-semibold text-primary text-center">
+                      Sisa Tagihan: Rp {Math.max(0, active.total_harga - active.jumlah_dibayar).toLocaleString("id-ID")}
                     </p>
                   </div>
                 )}
@@ -2059,6 +2156,8 @@ CREATE TABLE IF NOT EXISTS paket_cicilan (
   cicilan_ke INT NOT NULL DEFAULT 1,
   total_cicilan INT NOT NULL DEFAULT 1,
   nominal BIGINT NOT NULL DEFAULT 0,
+  total_harga BIGINT NOT NULL DEFAULT 0,
+  jumlah_dibayar BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
