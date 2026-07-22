@@ -901,12 +901,6 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
 
 // ── PAGE: Cicilan ─────────────────────────────────────────────────────
 function PageCicilan({ cfg }: { cfg: SiteConfig }) {
-  const [uploaded, setUploaded] = useState(false);
-  const totalHarga = 4500000, sudahDibayar = 3000000;
-  const sisa = totalHarga - sudahDibayar;
-  const pct = Math.round((sudahDibayar / totalHarga) * 100);
-  const cicilanPerBulan = Math.ceil(totalHarga / parseInt(cfg.cicilanMaksimal || "3"));
-
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       <div>
@@ -914,7 +908,7 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
         <h1 className="font-display text-2xl font-bold">Cicilan Saya</h1>
       </div>
 
-      {/* Card rekening pembayaran */}
+      {/* Info rekening */}
       <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
         <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-1.5">
           <CreditCard className="w-3.5 h-3.5" /> Bayar Cicilan ke Rekening Ini
@@ -924,100 +918,27 @@ function PageCicilan({ cfg }: { cfg: SiteConfig }) {
             { label: "Bank", value: cfg.namaBank },
             { label: "No. Rekening", value: cfg.norek, mono: true },
             { label: "Atas Nama", value: cfg.namaRekening },
-            { label: "Cicilan per Bulan", value: fmtRp(cicilanPerBulan), bold: true },
           ].map(r => (
             <div key={r.label} className="flex items-center justify-between px-3 py-2.5">
               <span className="text-xs text-muted-foreground">{r.label}</span>
-              <span className={`text-sm ${r.mono ? "font-mono tracking-wider" : ""} ${r.bold ? "font-bold text-accent" : "font-semibold"}`}>{r.value}</span>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-amber-700 mt-3 leading-relaxed">
-          Setelah transfer, segera upload bukti pembayaran di bawah atau kirim ke WhatsApp admin.
-        </p>
-      </div>
-
-      <div className="bg-primary text-primary-foreground rounded-2xl p-5">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <p className="text-primary-foreground/60 text-xs mb-0.5">Paket Aktif</p>
-            <p className="font-display font-bold">Gareng (DMB-001)</p>
-          </div>
-          <span className="bg-amber-400/20 text-amber-300 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-400/30">Aktif</span>
-        </div>
-        <div className="grid grid-cols-3 gap-3 mb-4 text-center">
-          {[
-            { label: "Total", value: fmtRp(totalHarga), color: "text-white" },
-            { label: "Dibayar", value: fmtRp(sudahDibayar), color: "text-emerald-400" },
-            { label: "Sisa", value: fmtRp(sisa), color: "text-amber-300" },
-          ].map(s => (
-            <div key={s.label}>
-              <p className="text-primary-foreground/50 text-xs mb-0.5">{s.label}</p>
-              <p className={`font-bold text-xs md:text-sm ${s.color}`}>{s.value}</p>
-            </div>
-          ))}
-        </div>
-        <div>
-          <div className="flex justify-between text-xs mb-1">
-            <span className="text-primary-foreground/60">Progress</span>
-            <span className="font-semibold">{pct}%</span>
-          </div>
-          <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <h2 className="font-semibold mb-3">Riwayat Pembayaran</h2>
-        <div className="space-y-3">
-          {[
-            { ke: 1, tanggal: "15 Mar 2026", jumlah: 1500000, status: "terkonfirmasi" },
-            { ke: 2, tanggal: "15 Mei 2026", jumlah: 1500000, status: "terkonfirmasi" },
-            { ke: 3, tanggal: "15 Jul 2026", jumlah: 1500000, status: "menunggu_konfirmasi" },
-          ].map(r => (
-            <div key={r.ke} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
-              <div className="flex items-center gap-2.5">
-                {r.status === "terkonfirmasi" ? <CheckCircle className="w-4 h-4 text-emerald-500" /> : <Clock className="w-4 h-4 text-amber-500" />}
-                <div>
-                  <p className="text-sm font-medium">Cicilan ke-{r.ke}</p>
-                  <p className="text-xs text-muted-foreground">{r.tanggal}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-sm">{fmtRp(r.jumlah)}</p>
-                <p className={`text-xs font-medium ${r.status === "terkonfirmasi" ? "text-emerald-600" : "text-amber-600"}`}>
-                  {r.status === "terkonfirmasi" ? "Terkonfirmasi" : "Menunggu"}
-                </p>
-              </div>
+              <span className={`text-sm ${r.mono ? "font-mono tracking-wider" : "font-semibold"}`}>{r.value || "—"}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-2xl p-5">
-        <div className="flex items-center gap-2.5 mb-4">
-          <AlertCircle className="w-4 h-4 text-amber-500" />
-          <div>
-            <p className="font-semibold text-sm">Jatuh Tempo Berikutnya</p>
-            <p className="text-xs text-muted-foreground">15 Jul 2026 — {fmtRp(1500000)}</p>
-          </div>
-        </div>
-        <div className="bg-muted rounded-xl p-4 border-2 border-dashed border-border text-center">
-          {uploaded ? (
-            <div className="flex items-center justify-center gap-2 text-emerald-600 font-semibold text-sm">
-              <CheckCircle className="w-4 h-4" /> Bukti diupload! Menunggu konfirmasi admin.
-            </div>
-          ) : (
-            <>
-              <Upload className="w-5 h-5 text-muted-foreground mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground mb-3">Upload bukti transfer cicilan ke-3</p>
-              <button onClick={() => setUploaded(true)} className="bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
-                Upload Bukti Transfer
-              </button>
-            </>
-          )}
-        </div>
+      {/* Empty state */}
+      <div className="text-center py-14 bg-card border border-border rounded-2xl">
+        <CreditCard className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+        <p className="font-semibold mb-1">Belum ada cicilan aktif</p>
+        <p className="text-sm text-muted-foreground mb-4">Hubungi admin untuk mendaftarkan paket cicilan domba.</p>
+        <a
+          href={`https://wa.me/${cfg.whatsapp}?text=Halo%20admin%2C%20saya%20ingin%20mendaftar%20paket%20cicilan%20domba.`}
+          target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors"
+        >
+          <Phone className="w-4 h-4" /> Hubungi Admin via WhatsApp
+        </a>
       </div>
     </div>
   );
@@ -1212,27 +1133,10 @@ function PageAdmin({
       {tab === "pesanan" && (
         <div>
           <h2 className="font-semibold mb-3">Pesanan Masuk</h2>
-          <div className="space-y-2.5">
-            {[
-              { id: "ORD-001", pembeli: "Budi Santoso", domba: "Gareng", total: 4500000, status: "menunggu_konfirmasi" },
-              { id: "ORD-002", pembeli: "Siti Rahayu", domba: "Arjuna", total: 4800000, status: "diproses" },
-              { id: "ORD-003", pembeli: "Ahmad Fauzi", domba: "Petruk", total: 5200000, status: "selesai" },
-            ].map(o => (
-              <div key={o.id} className="bg-card border border-border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                    <span className="font-semibold text-sm">{o.pembeli}</span>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${o.status === "selesai" ? "bg-emerald-100 text-emerald-700" : o.status === "diproses" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>
-                      {o.status.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">{o.id} · {o.domba} · <span className="text-accent font-semibold">{fmtRp(o.total)}</span></div>
-                </div>
-                <select defaultValue={o.status} className="bg-input-background border border-border rounded-xl px-3 py-2 text-xs focus:outline-none self-start sm:self-auto">
-                  {["menunggu_konfirmasi", "diproses", "selesai", "dibatalkan"].map(s => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
-                </select>
-              </div>
-            ))}
+          <div className="text-center py-14 bg-card border border-border rounded-2xl text-muted-foreground">
+            <BarChart2 className="w-8 h-8 mx-auto mb-2" />
+            <p className="font-semibold text-sm">Belum ada pesanan</p>
+            <p className="text-xs mt-1">Pesanan masuk akan tampil di sini.</p>
           </div>
         </div>
       )}
@@ -1240,36 +1144,10 @@ function PageAdmin({
       {tab === "cicilan" && (
         <div>
           <h2 className="font-semibold mb-3">Kelola Cicilan</h2>
-          <div className="space-y-3">
-            {[
-              { user: "Budi Santoso", domba: "Gareng (DMB-001)", total: 4500000, dibayar: 3000000, cicilan: "3/3", bukti: true },
-              { user: "Siti Rahayu", domba: "Arjuna (DMB-006)", total: 4800000, dibayar: 1600000, cicilan: "1/3", bukti: false },
-            ].map((c, i) => (
-              <div key={i} className="bg-card border border-border rounded-2xl p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="font-semibold text-sm">{c.user}</p>
-                    <p className="text-xs text-muted-foreground">{c.domba}</p>
-                  </div>
-                  <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">Cicilan {c.cicilan}</span>
-                </div>
-                <div className="flex gap-4 text-xs mb-3">
-                  <span className="text-muted-foreground">Total: <b className="text-foreground">{fmtRp(c.total)}</b></span>
-                  <span className="text-muted-foreground">Dibayar: <b className="text-emerald-600">{fmtRp(c.dibayar)}</b></span>
-                  <span className="text-muted-foreground">Sisa: <b className="text-amber-600">{fmtRp(c.total - c.dibayar)}</b></span>
-                </div>
-                {c.bukti && (
-                  <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                    <span className="text-xs text-amber-800 flex-1">Bukti transfer menunggu konfirmasi</span>
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition-colors">Konfirmasi</button>
-                      <button className="bg-destructive text-destructive-foreground px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-destructive/90 transition-colors">Tolak</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="text-center py-14 bg-card border border-border rounded-2xl text-muted-foreground">
+            <CreditCard className="w-8 h-8 mx-auto mb-2" />
+            <p className="font-semibold text-sm">Belum ada data cicilan</p>
+            <p className="text-xs mt-1">Data cicilan pengguna akan tampil di sini.</p>
           </div>
         </div>
       )}
@@ -2034,14 +1912,32 @@ export default function App() {
     if (lain.length > 0) setProdukLain(lain);
   };
 
-  const loadProfile = async (uid: string, email: string) => {
-    const { data } = await supabase.from("profiles").select("*").eq("id", uid).single();
+  const loadProfile = async (uid: string, email: string, meta?: any) => {
+    const { data, error } = await supabase.from("profiles").select("*").eq("id", uid).single();
+    if (error) console.error("[loadProfile] error:", error.message, error.code);
+
+    const noHpFromEmail = email.replace("@dapurdomba.local", "");
+    const metaNama = meta?.nama_lengkap || meta?.full_name || "";
+    const metaHp = meta?.no_hp || noHpFromEmail;
+
     if (data) {
-      setRole(data.role as Role);
-      setUserProfile({ nama: data.nama_lengkap, email, hp: data.no_hp });
+      setRole((data.role || "user") as Role);
+      setUserProfile({
+        nama: data.nama_lengkap || metaNama,
+        email,
+        hp: data.no_hp || metaHp,
+      });
     } else {
+      // Tidak ada profile di DB, coba buat otomatis
+      const hp = noHpFromEmail;
+      await supabase.from("profiles").upsert({
+        id: uid,
+        nama_lengkap: metaNama,
+        no_hp: hp,
+        role: "user",
+      }, { onConflict: "id" });
       setRole("user");
-      setUserProfile({ nama: "", email, hp: "" });
+      setUserProfile({ nama: metaNama, email, hp });
     }
   };
 
@@ -2052,14 +1948,14 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setAuthUser(session.user);
-        loadProfile(session.user.id, session.user.email || "");
+        loadProfile(session.user.id, session.user.email || "", session.user.user_metadata);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       if (session) {
         setAuthUser(session.user);
-        loadProfile(session.user.id, session.user.email || "");
+        loadProfile(session.user.id, session.user.email || "", session.user.user_metadata);
       } else {
         setAuthUser(null);
         setRole("guest");
