@@ -690,21 +690,30 @@ function PageDetail({ id, setPage, role, wa, sheepData, cfg }: { id: string; set
   );
 }
 
+// nomor HP → fake email untuk Supabase auth
+const hpToEmail = (hp: string) => `${hp.replace(/\D/g, "")}@dapurdomba.local`;
+
 // ── PAGE: Login ───────────────────────────────────────────────────────
 function PageLogin({ setPage, onLoginDemo }: { setPage: (p: Page) => void; onLoginDemo: (r: Role) => void }) {
-  const [email, setEmail] = useState("");
+  const [hp, setHp] = useState("");
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !pass) return;
+    if (!hp || !pass) return;
     setLoading(true);
     setError("");
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password: pass });
+    const { error: err } = await supabase.auth.signInWithPassword({
+      email: hpToEmail(hp),
+      password: pass,
+    });
     setLoading(false);
-    if (err) { setError(err.message); return; }
+    if (err) {
+      setError("No. HP atau password salah. Coba lagi.");
+      return;
+    }
     setPage("beranda");
   };
 
@@ -720,8 +729,8 @@ function PageLogin({ setPage, onLoginDemo }: { setPage: (p: Page) => void; onLog
         </div>
         <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
           <div>
-            <label className="block text-sm font-medium mb-1.5">Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@kamu.com"
+            <label className="block text-sm font-medium mb-1.5">No. HP / WhatsApp</label>
+            <input type="tel" value={hp} onChange={e => setHp(e.target.value)} placeholder="08xxxxxxxxxx"
               onKeyDown={e => e.key === "Enter" && handleLogin()}
               className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </div>
@@ -772,36 +781,40 @@ function PageLogin({ setPage, onLoginDemo }: { setPage: (p: Page) => void; onLog
 
 // ── PAGE: Signup ──────────────────────────────────────────────────────
 function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
-  const [form, setForm] = useState({ nama: "", email: "", hp: "", pass: "" });
+  const [form, setForm] = useState({ nama: "", hp: "", pass: "", konfirmasi: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
   const handleSignup = async () => {
-    if (!form.nama || !form.email || !form.pass) return;
+    if (!form.nama || !form.hp || !form.pass) { setError("Semua field wajib diisi."); return; }
     if (form.pass.length < 6) { setError("Password minimal 6 karakter."); return; }
+    if (form.pass !== form.konfirmasi) { setError("Konfirmasi password tidak cocok."); return; }
     setLoading(true);
     setError("");
     try {
-      const { data, error: err } = await supabase.auth.signUp({
-        email: form.email,
+      const fakeEmail = hpToEmail(form.hp);
+      const { error: err } = await supabase.auth.signUp({
+        email: fakeEmail,
         password: form.pass,
-        options: { data: { nama_lengkap: form.nama, no_hp: form.hp } }
+        options: {
+          data: { nama_lengkap: form.nama, no_hp: form.hp },
+          emailRedirectTo: undefined,
+        }
       });
       setLoading(false);
       if (err) {
-        // err.message bisa kosong/object saat DB error
-        const msg = (err.message && err.message !== "{}" && err.message !== "{}")
-          ? err.message
-          : "Gagal membuat akun. Pastikan migration SQL sudah dijalankan di Supabase.";
-        setError(msg);
+        if (err.message?.includes("already registered") || err.message?.includes("already exists")) {
+          setError("No. HP ini sudah terdaftar. Silakan masuk.");
+        } else {
+          setError("Gagal membuat akun. Coba lagi atau hubungi admin.");
+        }
         return;
       }
-      // signup sukses meski ada DB warning (profiles table belum ada)
       setDone(true);
     } catch (e: any) {
       setLoading(false);
-      setError(e?.message || "Terjadi kesalahan jaringan, coba lagi.");
+      setError("Terjadi kesalahan jaringan, coba lagi.");
     }
   };
 
@@ -812,7 +825,7 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
           <CheckCircle className="w-8 h-8 text-emerald-600" />
         </div>
         <h1 className="font-display text-xl font-bold mb-2">Akun Berhasil Dibuat!</h1>
-        <p className="text-sm text-muted-foreground mb-6">Cek email kamu untuk verifikasi, lalu masuk ke akun DapurDomba.</p>
+        <p className="text-sm text-muted-foreground mb-6">Akun kamu sudah aktif. Silakan masuk sekarang.</p>
         <button onClick={() => setPage("login")} className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
           Masuk Sekarang
         </button>
@@ -830,9 +843,9 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
         <div className="bg-card border border-border rounded-2xl p-5 space-y-3">
           {[
             { id: "nama", label: "Nama Lengkap", type: "text", placeholder: "Budi Santoso" },
-            { id: "email", label: "Email", type: "email", placeholder: "budi@email.com" },
-            { id: "hp", label: "No. HP / WhatsApp", type: "tel", placeholder: "08xxxxxxxx" },
+            { id: "hp", label: "No. HP / WhatsApp (untuk login)", type: "tel", placeholder: "08xxxxxxxxxx" },
             { id: "pass", label: "Password", type: "password", placeholder: "Min. 6 karakter" },
+            { id: "konfirmasi", label: "Konfirmasi Password", type: "password", placeholder: "Ulangi password" },
           ].map(f => (
             <div key={f.id}>
               <label className="block text-sm font-medium mb-1.5">{f.label}</label>
@@ -840,6 +853,9 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
                 className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
             </div>
           ))}
+          <p className="text-xs text-muted-foreground bg-muted rounded-xl px-3 py-2">
+            No. HP digunakan sebagai username untuk masuk. Tidak perlu email.
+          </p>
           {error && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
               <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
