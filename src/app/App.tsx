@@ -39,6 +39,7 @@ interface Sheep {
   jenisKelamin: "jantan" | "betina";
   umurBulan: number; beratKg: number; tinggiCm: number;
   foto: string[]; deskripsi: string;
+  unggulan: boolean;
 }
 
 interface ProdukLain {
@@ -107,6 +108,7 @@ function mapToSheep(p: any, index: number): Sheep {
     tinggiCm: spec.tinggi_cm || 0,
     foto: imgs.length ? imgs : ["https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=800&h=600&fit=crop&auto=format"],
     deskripsi: p.deskripsi || "",
+    unggulan: p.unggulan === true,
   };
 }
 
@@ -256,8 +258,11 @@ function Navbar({ page, role, setPage, onLogout, namaFarm }: { page: Page; role:
 }
 
 // ── PAGE: Beranda ─────────────────────────────────────────────────────
-function PageBeranda({ setPage, setSelectedId, role, cfg, produkLain, sheepData }: { setPage: (p: Page) => void; setSelectedId: (id: string) => void; role: Role; cfg: SiteConfig; produkLain: ProdukLain[]; sheepData: Sheep[] }) {
-  const featured = sheepData.filter(s => s.status === "tersedia").slice(0, 3);
+function PageBeranda({ setPage, setSelectedId, role, cfg, produkLain, sheepData, onWantCicilan }: { setPage: (p: Page) => void; setSelectedId: (id: string) => void; role: Role; cfg: SiteConfig; produkLain: ProdukLain[]; sheepData: Sheep[]; onWantCicilan: () => void }) {
+  const tersedia = sheepData.filter(s => s.status === "tersedia");
+  const dipilihAdmin = tersedia.filter(s => s.unggulan);
+  const lainnya = tersedia.filter(s => !s.unggulan);
+  const featured = [...dipilihAdmin, ...lainnya].slice(0, 3);
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-10">
 
@@ -336,8 +341,8 @@ function PageBeranda({ setPage, setSelectedId, role, cfg, produkLain, sheepData 
               </li>
             ))}
           </ul>
-          <button onClick={() => role === "guest" ? setPage("login") : setPage("cicilan")} className="flex items-center gap-2 bg-amber-400 text-amber-900 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-300 transition-colors">
-            {role === "guest" ? "Masuk untuk Daftar" : "Lihat Cicilan Saya"} <ArrowRight className="w-4 h-4" />
+          <button onClick={() => role === "guest" ? onWantCicilan() : setPage("cicilan")} className="flex items-center gap-2 bg-amber-400 text-amber-900 px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-300 transition-colors">
+            {role === "guest" ? "Daftar untuk Ikut Cicilan" : "Lihat Cicilan Saya"} <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -470,18 +475,37 @@ function SheepCardCompact({ sheep, onClick }: { sheep: Sheep; onClick: () => voi
 }
 
 // ── PAGE: Katalog ─────────────────────────────────────────────────────
+const HARGA_PRESETS: { label: string; min: number; max: number | null }[] = [
+  { label: "< Rp 3 Juta", min: 0, max: 3_000_000 },
+  { label: "Rp 3 - 5 Juta", min: 3_000_000, max: 5_000_000 },
+  { label: "Rp 5 - 8 Juta", min: 5_000_000, max: 8_000_000 },
+  { label: "> Rp 8 Juta", min: 8_000_000, max: null },
+];
+
 function PageKatalog({ setPage, setSelectedId, sheepData }: { setPage: (p: Page) => void; setSelectedId: (id: string) => void; sheepData: Sheep[] }) {
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("semua");
+  const [minHarga, setMinHarga] = useState("");
+  const [maxHarga, setMaxHarga] = useState("");
   const [filterJK, setFilterJK] = useState("semua");
   const [showFilter, setShowFilter] = useState(false);
 
   const filtered = sheepData.filter(s => {
     if (search && !s.nama.toLowerCase().includes(search.toLowerCase()) && !s.kode.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filterStatus !== "semua" && s.status !== filterStatus) return false;
+    const min = parseInt(minHarga) || 0;
+    const max = maxHarga ? (parseInt(maxHarga) || Infinity) : Infinity;
+    if (s.harga < min || s.harga > max) return false;
     if (filterJK !== "semua" && s.jenisKelamin !== filterJK) return false;
     return true;
   });
+
+  const hargaAktif = !!(minHarga || maxHarga);
+
+  const applyPreset = (min: number, max: number | null) => {
+    setMinHarga(min ? String(min) : "");
+    setMaxHarga(max !== null ? String(max) : "");
+  };
+
+  const resetHarga = () => { setMinHarga(""); setMaxHarga(""); };
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -497,18 +521,38 @@ function PageKatalog({ setPage, setSelectedId, sheepData }: { setPage: (p: Page)
             className="w-full pl-9 pr-4 py-2.5 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
         <button onClick={() => setShowFilter(!showFilter)}
-          className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${showFilter ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}>
+          className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${showFilter || hargaAktif ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground hover:text-foreground"}`}>
           <Filter className="w-4 h-4" /> Filter
         </button>
       </div>
 
       {showFilter && (
-        <div className="bg-card border border-border rounded-2xl p-4 mb-4 grid grid-cols-2 gap-3">
+        <div className="bg-card border border-border rounded-2xl p-4 mb-4 space-y-3">
           <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">Status</label>
-            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full bg-input-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none">
-              {[["semua", "Semua"], ["tersedia", "Tersedia"], ["dipesan", "Dipesan"], ["terjual", "Terjual"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block">Rentang Harga</label>
+              {hargaAktif && (
+                <button onClick={resetHarga} className="text-xs font-medium text-primary hover:underline">Reset</button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-2.5">
+              {HARGA_PRESETS.map(p => {
+                const active = parseInt(minHarga || "0") === p.min && (p.max === null ? maxHarga === "" : parseInt(maxHarga || "0") === p.max);
+                return (
+                  <button key={p.label} onClick={() => applyPreset(p.min, p.max)}
+                    className={`px-2.5 py-1.5 rounded-full text-xs font-medium border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-input-background border-border text-muted-foreground hover:text-foreground"}`}>
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="number" min="0" placeholder="Minimal (Rp)" value={minHarga} onChange={e => setMinHarga(e.target.value)}
+                className="w-full bg-input-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none" />
+              <span className="text-muted-foreground text-xs flex-shrink-0">—</span>
+              <input type="number" min="0" placeholder="Maksimal (Rp)" value={maxHarga} onChange={e => setMaxHarga(e.target.value)}
+                className="w-full bg-input-background border border-border rounded-xl px-3 py-2.5 text-sm focus:outline-none" />
+            </div>
           </div>
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">Jenis Kelamin</label>
@@ -717,11 +761,13 @@ function PageDetail({ id, setPage, role, wa, sheepData, cfg }: { id: string; set
 const hpToEmail = (hp: string) => `${hp.replace(/\D/g, "")}@dapurdomba.local`;
 
 // ── PAGE: Login ───────────────────────────────────────────────────────
-function PageLogin({ setPage, onLoginDemo, waAdmin, onLoadProfile }: { 
+function PageLogin({ setPage, onLoginDemo, waAdmin, onLoadProfile, afterAuthPage, role }: { 
   setPage: (p: Page) => void; 
   onLoginDemo: (r: Role) => void; 
   waAdmin?: string;
   onLoadProfile?: (uid: string, email: string, meta?: any) => Promise<void>;
+  afterAuthPage?: Page;
+  role?: Role;
 }) {
   const [hp, setHp] = useState("");
   const [pass, setPass] = useState("");
@@ -749,7 +795,7 @@ function PageLogin({ setPage, onLoginDemo, waAdmin, onLoadProfile }: {
       // Jika login sukses, langsung pindah halaman. 
       // State authUser & role akan diupdate oleh listener onAuthStateChange di App.tsx
       setLoading(false);
-      setPage("beranda");
+      setPage(afterAuthPage || "beranda");
     } catch (e: any) {
       setLoading(false);
       setError("Gagal masuk: " + (e.message || "Kesalahan jaringan"));
@@ -830,7 +876,7 @@ function PageLogin({ setPage, onLoginDemo, waAdmin, onLoadProfile }: {
 }
 
 // ── PAGE: Signup ──────────────────────────────────────────────────────
-function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
+function PageSignup({ setPage, afterAuthPage, role }: { setPage: (p: Page) => void; afterAuthPage?: Page; role?: Role }) {
   const [form, setForm] = useState({ nama: "", hp: "", pass: "", konfirmasi: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -896,7 +942,7 @@ function PageSignup({ setPage }: { setPage: (p: Page) => void }) {
         </div>
         <h1 className="font-display text-xl font-bold mb-2">Akun Berhasil Dibuat!</h1>
         <p className="text-sm text-muted-foreground mb-6">Akun kamu sudah aktif. Silakan masuk sekarang.</p>
-        <button onClick={() => setPage("login")} className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
+        <button onClick={() => setPage(role && role !== "guest" ? (afterAuthPage || "beranda") : "login")} className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
           Masuk Sekarang
         </button>
       </div>
@@ -1283,11 +1329,15 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
   const [cicilanMap, setCicilanMap] = useState<Record<string, { id: string; status: string; cicilan_ke: number; total_cicilan: number }>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [errorMap, setErrorMap] = useState<Record<string, string>>({});
+  const [durasiInput, setDurasiInput] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
-    const { data: profil } = await supabase.from("profiles").select("id, nama_lengkap, no_hp").eq("role", "user").order("created_at", { ascending: false });
-    const { data: cicilan } = await supabase.from("paket_cicilan").select("id, user_id, status, cicilan_ke, total_cicilan").eq("status", "aktif");
+    const { data: profil, error: profilError } = await supabase.from("profiles").select("id, nama_lengkap, no_hp").eq("role", "user").order("created_at", { ascending: false });
+    const { data: cicilan, error: cicilanError } = await supabase.from("paket_cicilan").select("id, user_id, status, cicilan_ke, total_cicilan").eq("status", "aktif");
+    if (profilError) console.error("Error loading users:", profilError);
+    if (cicilanError) console.error("Error loading cicilan:", cicilanError);
     setUsers(profil || []);
     const map: Record<string, { id: string; status: string; cicilan_ke: number; total_cicilan: number }> = {};
     (cicilan || []).forEach(c => { map[c.user_id] = { id: c.id, status: c.status, cicilan_ke: c.cicilan_ke, total_cicilan: c.total_cicilan }; });
@@ -1297,33 +1347,59 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
 
   useEffect(() => { load(); }, []);
 
+  const friendlyError = (error: any) => {
+    if (!error) return "Terjadi kesalahan yang tidak diketahui.";
+    if (error.code === "42501" || /row-level security|permission denied/i.test(error.message || "")) {
+      return "Gagal: akun ini belum punya akses admin di database. Pastikan tabel profiles.role = 'admin' untuk akun kamu.";
+    }
+    if (error.code === "42P01" || /does not exist/i.test(error.message || "")) {
+      return "Gagal: tabel paket_cicilan belum tersedia di database. Jalankan dulu skrip setup SQL-nya.";
+    }
+    return error.message || "Gagal menyimpan data cicilan.";
+  };
+
   const handleActivate = async (userId: string) => {
     setSaving(userId);
+    setErrorMap(m => ({ ...m, [userId]: "" }));
+    const durasi = parseInt(durasiInput[userId] || cfg.cicilanMaksimal) || 3;
     const { error } = await supabase.from("paket_cicilan").insert({
       user_id: userId,
       status: "aktif",
       cicilan_ke: 1,
-      total_cicilan: parseInt(cfg.cicilanMaksimal) || 3,
+      total_cicilan: durasi,
       nominal: 0,
     });
-    if (error) console.error("Error activating:", error);
+    if (error) {
+      console.error("Error activating:", error);
+      setErrorMap(m => ({ ...m, [userId]: friendlyError(error) }));
+    }
     await load();
     setSaving(null);
   };
 
-  const handleUpdateProgress = async (cicilanId: string, current: number, total: number) => {
+  const handleUpdateProgress = async (cicilanId: string, userId: string, current: number, total: number) => {
     setSaving(cicilanId);
-    await supabase.from("paket_cicilan").update({ 
-      cicilan_ke: current,
-      total_cicilan: total 
+    setErrorMap(m => ({ ...m, [userId]: "" }));
+    const { error } = await supabase.from("paket_cicilan").update({
+      cicilan_ke: Math.max(0, current),
+      total_cicilan: Math.max(1, total),
     }).eq("id", cicilanId);
+    if (error) {
+      console.error("Error updating progress:", error);
+      setErrorMap(m => ({ ...m, [userId]: friendlyError(error) }));
+    }
     await load();
     setSaving(null);
   };
 
-  const handleDeactivate = async (cicilanId: string) => {
+  const handleDeactivate = async (cicilanId: string, userId: string) => {
     setSaving(cicilanId);
-    await supabase.from("paket_cicilan").update({ status: "lunas" }).eq("id", cicilanId);
+    setErrorMap(m => ({ ...m, [userId]: "" }));
+    const { error } = await supabase.from("paket_cicilan").update({ status: "lunas" }).eq("id", cicilanId);
+    if (error) {
+      console.error("Error deactivating:", error);
+      setErrorMap(m => ({ ...m, [userId]: friendlyError(error) }));
+    }
     await load();
     setSaving(null);
   };
@@ -1333,7 +1409,7 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
   return (
     <div>
       <h2 className="font-semibold mb-1">Kelola Cicilan</h2>
-      <p className="text-xs text-muted-foreground mb-3">Aktifkan cicilan dan atur durasi cicilan untuk pengguna.</p>
+      <p className="text-xs text-muted-foreground mb-3">Aktifkan cicilan, atur durasi (bulan), dan pantau sisa cicilan tiap pengguna.</p>
       {users.length === 0 ? (
         <div className="text-center py-14 bg-card border border-border rounded-2xl text-muted-foreground">
           <CreditCard className="w-8 h-8 mx-auto mb-2" />
@@ -1343,9 +1419,11 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
         <div className="space-y-2.5">
           {users.map(u => {
             const active = cicilanMap[u.id];
+            const sisaBulan = active ? Math.max(0, active.total_cicilan - active.cicilan_ke) : 0;
+            const err = errorMap[u.id];
             return (
               <div key={u.id} className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                     <User className="w-4 h-4 text-primary" />
                   </div>
@@ -1357,18 +1435,37 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
                     {active ? "Cicilan Aktif" : "Belum Aktif"}
                   </span>
                   {!active && (
-                    <button onClick={() => handleActivate(u.id)} disabled={saving === u.id}
-                      className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60 flex-shrink-0">
-                      {saving === u.id ? "..." : "Aktifkan"}
-                    </button>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <input
+                        type="number"
+                        min="1"
+                        max="24"
+                        placeholder={cfg.cicilanMaksimal || "3"}
+                        value={durasiInput[u.id] ?? ""}
+                        onChange={(e) => setDurasiInput(m => ({ ...m, [u.id]: e.target.value }))}
+                        className="w-16 bg-background border border-border rounded-lg px-2 py-2 text-xs text-center"
+                        title="Jumlah bulan cicilan"
+                      />
+                      <button onClick={() => handleActivate(u.id)} disabled={saving === u.id}
+                        className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60 flex-shrink-0">
+                        {saving === u.id ? "..." : "Aktifkan"}
+                      </button>
+                    </div>
                   )}
                 </div>
+
+                {err && (
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-3 py-2 text-xs">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    <span>{err}</span>
+                  </div>
+                )}
 
                 {active && (
                   <div className="bg-muted/50 rounded-xl p-3 border border-border flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold">Progres Cicilan</span>
-                      <button onClick={() => handleDeactivate(active.id)} disabled={saving === active.id}
+                      <button onClick={() => handleDeactivate(active.id, u.id)} disabled={saving === active.id}
                         className="text-xs font-bold text-red-600 hover:text-red-700 disabled:opacity-50">
                         {saving === active.id ? "..." : "Selesaikan/Lunas"}
                       </button>
@@ -1382,18 +1479,19 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
                             type="number" 
                             className="w-full bg-background border border-border rounded-lg px-2 py-1 text-sm"
                             value={active.cicilan_ke}
-                            onChange={(e) => handleUpdateProgress(active.id, parseInt(e.target.value) || 0, active.total_cicilan)}
+                            onChange={(e) => handleUpdateProgress(active.id, u.id, parseInt(e.target.value) || 0, active.total_cicilan)}
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Total Bulan</label>
+                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Total Bulan (Durasi)</label>
                         <div className="flex items-center gap-2">
                           <input 
                             type="number" 
+                            min="1"
                             className="w-full bg-background border border-border rounded-lg px-2 py-1 text-sm"
                             value={active.total_cicilan}
-                            onChange={(e) => handleUpdateProgress(active.id, active.cicilan_ke, parseInt(e.target.value) || 0)}
+                            onChange={(e) => handleUpdateProgress(active.id, u.id, active.cicilan_ke, parseInt(e.target.value) || 1)}
                           />
                         </div>
                       </div>
@@ -1406,7 +1504,7 @@ function TabCicilan({ cfg }: { cfg: SiteConfig }) {
                       />
                     </div>
                     <p className="text-[10px] text-muted-foreground text-center">
-                      {active.cicilan_ke} dari {active.total_cicilan} bulan terbayar
+                      {active.cicilan_ke} dari {active.total_cicilan} bulan terbayar &middot; <span className="font-semibold text-foreground">Sisa {sisaBulan} bulan lagi</span>
                     </p>
                   </div>
                 )}
@@ -1548,7 +1646,7 @@ function TabUser() {
 const EMPTY_SHEEP: Omit<Sheep, "id"> = {
   kode: "", nama: "", harga: 0, status: "tersedia",
   jenisKelamin: "jantan", umurBulan: 0, beratKg: 0, tinggiCm: 0,
-  foto: [], deskripsi: "",
+  foto: [], deskripsi: "", unggulan: false,
 };
 
 function TabDomba({
@@ -1568,13 +1666,21 @@ function TabDomba({
 
   const openAdd = () => { setForm({ ...EMPTY_SHEEP }); setEditId(null); setShowForm(true); setSaved(false); setPhotoFile(null); setSaveError(null); };
   const openEdit = (s: Sheep) => {
-    setForm({ kode: s.kode, nama: s.nama, harga: s.harga, status: s.status, jenisKelamin: s.jenisKelamin, umurBulan: s.umurBulan, beratKg: s.beratKg, tinggiCm: s.tinggiCm, foto: [...s.foto], deskripsi: s.deskripsi });
+    setForm({ kode: s.kode, nama: s.nama, harga: s.harga, status: s.status, jenisKelamin: s.jenisKelamin, umurBulan: s.umurBulan, beratKg: s.beratKg, tinggiCm: s.tinggiCm, foto: [...s.foto], deskripsi: s.deskripsi, unggulan: s.unggulan });
     setEditId(s.id); setShowForm(true); setSaved(false); setPhotoFile(null); setSaveError(null);
   };
 
   const handleDelete = async (id: string) => {
     setSheepData(sheepData.filter(s => s.id !== id));
     await onDelete(id);
+  };
+
+  const jumlahUnggulan = sheepData.filter(s => s.unggulan).length;
+
+  const handleToggleFeatured = async (s: Sheep) => {
+    const next = { kode: s.kode, nama: s.nama, harga: s.harga, status: s.status, jenisKelamin: s.jenisKelamin, umurBulan: s.umurBulan, beratKg: s.beratKg, tinggiCm: s.tinggiCm, foto: s.foto, deskripsi: s.deskripsi, unggulan: !s.unggulan };
+    setSheepData(sheepData.map(x => x.id === s.id ? { ...x, unggulan: !x.unggulan } : x));
+    await onSave(next, null, s.id);
   };
 
   const handleSave = async () => {
@@ -1601,12 +1707,15 @@ function TabDomba({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <h2 className="font-semibold">Daftar Domba</h2>
         <button onClick={openAdd} className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-2 rounded-xl text-xs font-semibold hover:bg-primary/90 transition-colors">
           <Plus className="w-3.5 h-3.5" /> Tambah
         </button>
       </div>
+      <p className="text-xs text-muted-foreground mb-3">
+        Klik ikon <Star className="w-3 h-3 inline -mt-0.5" /> untuk memilih domba yang tampil di "Domba Pilihan" halaman depan ({jumlahUnggulan} dipilih, maks. 3 yang ditayangkan).
+      </p>
 
       {showForm && (
         <div className="bg-card border border-border rounded-2xl p-5 mb-4 space-y-4">
@@ -1679,6 +1788,20 @@ function TabDomba({
               <textarea value={form.deskripsi} onChange={e => setForm(v => ({ ...v, deskripsi: e.target.value }))} rows={2}
                 className="w-full px-3 py-2.5 bg-input-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
             </div>
+            <div className="col-span-2">
+              <label className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${form.unggulan ? "border-primary bg-primary/5" : "border-border"}`}>
+                <input
+                  type="checkbox"
+                  checked={form.unggulan}
+                  onChange={e => setForm(v => ({ ...v, unggulan: e.target.checked }))}
+                  className="w-4 h-4 accent-primary"
+                />
+                <span className="text-sm">
+                  <span className="font-semibold">Tampilkan di Halaman Depan</span>
+                  <span className="block text-xs text-muted-foreground">Domba yang ditandai akan diprioritaskan muncul di bagian "Domba Pilihan" (maks. 3).</span>
+                </span>
+              </label>
+            </div>
           </div>
 
           {saveError && (
@@ -1711,11 +1834,20 @@ function TabDomba({
                 <span className="font-semibold text-sm">{s.nama}</span>
                 <span className="font-mono text-xs text-muted-foreground">{s.kode}</span>
                 <StatusBadge status={s.status} />
+                {s.unggulan && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                    <Star className="w-2.5 h-2.5 fill-current" /> Unggulan
+                  </span>
+                )}
               </div>
               <span className="text-accent font-bold text-xs">{fmtRp(s.harga)}</span>
               <span className="text-muted-foreground text-xs ml-2">{s.beratKg} kg · {s.umurBulan} bln</span>
             </div>
             <div className="flex gap-1 flex-shrink-0">
+              <button onClick={() => handleToggleFeatured(s)} title={s.unggulan ? "Hapus dari Halaman Depan" : "Tampilkan di Halaman Depan"}
+                className={`p-2 rounded-xl hover:bg-muted transition-colors ${s.unggulan ? "text-amber-500" : "text-muted-foreground hover:text-amber-500"}`}>
+                <Star className={`w-4 h-4 ${s.unggulan ? "fill-current" : ""}`} />
+              </button>
               <button onClick={() => openEdit(s)} className="p-2 text-muted-foreground hover:text-primary rounded-xl hover:bg-muted transition-colors"><Edit2 className="w-4 h-4" /></button>
               <button onClick={() => handleDelete(s.id)} className="p-2 text-muted-foreground hover:text-destructive rounded-xl hover:bg-muted transition-colors"><Trash2 className="w-4 h-4" /></button>
             </div>
@@ -1891,8 +2023,12 @@ CREATE TABLE IF NOT EXISTS products (
   satuan TEXT NOT NULL DEFAULT 'ekor',
   stok INT NOT NULL DEFAULT 1,
   status TEXT NOT NULL DEFAULT 'tersedia' CHECK (status IN ('tersedia','dipesan','terjual')),
+  unggulan BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Jalankan baris ini jika tabel products SUDAH ada sebelumnya (menambahkan kolom unggulan tanpa menghapus data)
+ALTER TABLE products ADD COLUMN IF NOT EXISTS unggulan BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS domba_spesifikasi (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2235,6 +2371,7 @@ function TabPengaturan({ cfg, setCfg, adminProfile }: { cfg: SiteConfig; setCfg:
 export default function App() {
   const [page, setPage] = useState<Page>("beranda");
   const [role, setRole] = useState<Role>("guest");
+  const [afterAuthPage, setAfterAuthPage] = useState<Page>("beranda");
   const [selectedId, setSelectedId] = useState("");
   const [cfg, setCfg] = useState<SiteConfig>(DEFAULT_CFG);
   const [produkLain, setProdukLain] = useState<ProdukLain[]>(DEFAULT_PRODUK_LAIN);
@@ -2315,7 +2452,8 @@ export default function App() {
   const loadProducts = async () => {
     const { data, error } = await supabase
       .from("products")
-      .select("*, domba_spesifikasi(*), product_images(*)");
+      .select("*, domba_spesifikasi(*), product_images(*)")
+      .order("created_at", { ascending: false });
     if (error || !data) return;
     setDbAvailable(true);
     const domba = data.filter(p => p.kategori === "domba").map(mapToSheep);
@@ -2403,7 +2541,7 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleLoginDemo = (r: Role) => { setRole(r); setPage("beranda"); };
+  const handleLoginDemo = (r: Role) => { setRole(r); setPage(afterAuthPage); };
 
   const handleLogout = async () => {
     if (authUser) await supabase.auth.signOut();
@@ -2421,6 +2559,7 @@ export default function App() {
       satuan: "ekor",
       stok: 1,
       status: form.status,
+      unggulan: form.unggulan,
     };
 
     let productId = editId;
@@ -2536,11 +2675,11 @@ export default function App() {
       <Navbar page={page} role={role} setPage={setPage} onLogout={handleLogout} namaFarm={cfg.namaFarm} />
 
       <main>
-        {page === "beranda" && <PageBeranda setPage={setPage} setSelectedId={setSelectedId} role={role} cfg={cfg} produkLain={produkLain} sheepData={sheepData} />}
+        {page === "beranda" && <PageBeranda setPage={setPage} setSelectedId={setSelectedId} role={role} cfg={cfg} produkLain={produkLain} sheepData={sheepData} onWantCicilan={() => { setAfterAuthPage("cicilan"); setPage("signup"); }} />}
         {page === "katalog" && <PageKatalog setPage={setPage} setSelectedId={setSelectedId} sheepData={sheepData} />}
         {page === "detail" && <PageDetail id={selectedId} setPage={setPage} role={role} wa={cfg.whatsapp} sheepData={sheepData} cfg={cfg} />}
-        {page === "login" && <PageLogin setPage={setPage} onLoginDemo={handleLoginDemo} waAdmin={cfg.whatsapp} onLoadProfile={loadProfile} />}
-        {page === "signup" && <PageSignup setPage={setPage} />}
+        {page === "login" && <PageLogin setPage={setPage} onLoginDemo={handleLoginDemo} waAdmin={cfg.whatsapp} onLoadProfile={loadProfile} afterAuthPage={afterAuthPage} role={role} />}
+        {page === "signup" && <PageSignup setPage={setPage} afterAuthPage={afterAuthPage} role={role} />}
         {page === "cicilan" && role !== "guest" && <PageCicilan cfg={cfg} />}
         {page === "admin" && role === "admin" && (
           <PageAdmin
