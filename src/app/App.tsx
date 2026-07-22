@@ -76,7 +76,7 @@ const DEFAULT_CFG: SiteConfig = {
 };
 
 // ── Supabase helpers ──────────────────────────────────────────────────
-const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/server/make-server-6a2217ea`;
+const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-6a2217ea`;
 
 async function uploadImageToServer(file: File): Promise<string> {
   try {
