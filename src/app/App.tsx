@@ -694,7 +694,7 @@ function PageDetail({ id, setPage, role, wa, sheepData, cfg }: { id: string; set
 const hpToEmail = (hp: string) => `${hp.replace(/\D/g, "")}@dapurdomba.local`;
 
 // ── PAGE: Login ───────────────────────────────────────────────────────
-function PageLogin({ setPage, onLoginDemo }: { setPage: (p: Page) => void; onLoginDemo: (r: Role) => void }) {
+function PageLogin({ setPage, onLoginDemo, waAdmin }: { setPage: (p: Page) => void; onLoginDemo: (r: Role) => void; waAdmin?: string }) {
   const [hp, setHp] = useState("");
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
@@ -773,6 +773,17 @@ function PageLogin({ setPage, onLoginDemo }: { setPage: (p: Page) => void; onLog
         </div>
         <p className="text-center text-sm text-muted-foreground mt-4">
           Belum punya akun? <button onClick={() => setPage("signup")} className="text-primary font-medium hover:underline">Daftar</button>
+        </p>
+        <p className="text-center text-xs text-muted-foreground mt-2">
+          Lupa password?{" "}
+          <a
+            href={`https://wa.me/${(waAdmin || "").replace(/\D/g, "")}?text=Halo%20admin%2C%20saya%20lupa%20password%20akun%20DapurDomba.%20No.%20HP%20saya%3A%20`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary font-medium hover:underline"
+          >
+            Hubungi Admin via WhatsApp
+          </a>
         </p>
       </div>
     </div>
@@ -2147,7 +2158,7 @@ export default function App() {
         {page === "beranda" && <PageBeranda setPage={setPage} setSelectedId={setSelectedId} role={role} cfg={cfg} produkLain={produkLain} sheepData={sheepData} />}
         {page === "katalog" && <PageKatalog setPage={setPage} setSelectedId={setSelectedId} sheepData={sheepData} />}
         {page === "detail" && <PageDetail id={selectedId} setPage={setPage} role={role} wa={cfg.whatsapp} sheepData={sheepData} cfg={cfg} />}
-        {page === "login" && <PageLogin setPage={setPage} onLoginDemo={handleLoginDemo} />}
+        {page === "login" && <PageLogin setPage={setPage} onLoginDemo={handleLoginDemo} waAdmin={cfg.whatsapp} />}
         {page === "signup" && <PageSignup setPage={setPage} />}
         {page === "cicilan" && role !== "guest" && <PageCicilan cfg={cfg} />}
         {page === "admin" && role === "admin" && (
